@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CartRules — Simple purchase rules, per product</title>
+<meta name="description" content="Block discount codes on chosen products. Limit quantity per order. CartRules enforces both automatically, from one tiny Shopify app." />
+<link rel="icon" type="image/png" href="favicon.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<div class="scroll-progress"><span></span></div>
+
+<div class="nav">
+  <div class="nav__inner">
+    <a href="index.html" class="brand"><img src="logo-white.png" alt="CartRules" class="brand__mark">CartRules</a>
+    <div class="nav__links">
+      <a href="#features">Features</a>
+      <a href="#how-it-works">How it works</a>
+      <a href="#pricing">Pricing</a>
+      <a href="guide.html">Guide</a>
+      <a href="#faq">FAQ</a>
+      <a href="#roadmap">Roadmap</a>
+      <a href="#support">Support</a>
+    </div>
+    <div class="nav__cta">
+      <a href="guide.html" class="btn btn--primary">Read the guide →</a>
+      <button class="nav__toggle" aria-label="Toggle menu" aria-expanded="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="nav__mobile">
+    <a href="#features">Features</a>
+    <a href="#how-it-works">How it works</a>
+    <a href="#pricing">Pricing</a>
+    <a href="guide.html">Guide</a>
+    <a href="#faq">FAQ</a>
+    <a href="#roadmap">Roadmap</a>
+    <a href="#support">Support</a>
+  </div>
+</div>
+
+<main>
+
+  <!-- ===================== HERO ===================== -->
+  <section class="hero">
+    <div class="wrap">
+      <div class="hero__top">
+        <span class="pill pill--soft pill--dot">Shopify Functions app · built by MPC Trades</span>
+        <h1>Some products should never be discounted.<br>Some should never be bought by the <span class="accent-underline">dozen<svg viewBox="0 0 200 10" preserveAspectRatio="none"><path d="M2 7c40-6 156-6 196 0" stroke="#ff5a1f" stroke-width="5" fill="none" stroke-linecap="round" pathLength="100"/></svg></span>.</h1>
+        <p class="hero__lede">CartRules is a small Shopify app where you attach simple rules to products: <strong>block discount codes</strong> on the items that shouldn't be marked down, and <strong>cap quantity per order</strong> on the items that shouldn't be bought by the dozen. Both enforced automatically, at checkout — no code, no theme edits.</p>
+        <div class="hero__actions">
+          <a href="guide.html" class="btn btn--primary">Read the full guide →</a>
+          <a href="#pricing" class="btn btn--ghost">See pricing</a>
+          <span class="fine">Free plan · 3 active rules · no card required</span>
+        </div>
+      </div>
+
+      <div class="mockup">
+        <div class="mockup__bar">
+          <div class="mockup__dots"><span></span><span></span><span></span></div>
+          <div class="mockup__url">admin.shopify.com/store/yourstore/apps/cartrules</div>
+        </div>
+        <div class="mockup__body">
+          <div class="mockup__side">
+            <a class="is-current"><span class="dot"></span>Rules</a>
+            <a><span class="dot"></span>New rule</a>
+            <a><span class="dot"></span>Messages</a>
+            <a><span class="dot"></span>Plans &amp; billing</a>
+          </div>
+          <div class="mockup__main">
+            <div class="mockup__title">Your rules</div>
+            <div class="mockup__stats">
+              <div class="mockup__stat"><div class="lbl">Active rules</div><div class="val">4</div><div class="delta">2 free slots left</div></div>
+              <div class="mockup__stat"><div class="lbl">Triggered / mo</div><div class="val">312</div><div class="delta">↑ this month</div></div>
+              <div class="mockup__stat"><div class="lbl">Codes blocked</div><div class="val">58</div><div class="delta">margin protected</div></div>
+              <div class="mockup__stat"><div class="lbl">Qty adjusted</div><div class="val">21</div><div class="delta">shipping protected</div></div>
+            </div>
+            <table class="rtable">
+              <thead><tr><th>Rule</th><th>Applies to</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr><td class="rule-name">No discount codes</td><td class="rule-target">12 products · tag: no-promo</td><td><span class="status-chip active">Active</span></td></tr>
+                <tr><td class="rule-name">Max 2 per order</td><td class="rule-target">Collection: Plush XXL</td><td><span class="status-chip active">Active</span></td></tr>
+                <tr><td class="rule-name">Max 1 per order</td><td class="rule-target">Product: Album Special Ed.</td><td><span class="status-chip active">Active</span></td></tr>
+                <tr><td class="rule-name">Max 3 per order</td><td class="rule-target">Tag: heavy-item</td><td><span class="status-chip paused">Paused</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== 01 PROBLEM ===================== -->
+  <section id="problem">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow"><span class="num">01</span> The problem</span>
+        <h2>Two margin leaks Shopify doesn't fix natively.</h2>
+        <p>Excluding products from discount codes isn't a native setting, and quantity caps aren't either. Merchants either build fragile workarounds or lose money finding out the hard way.</p>
+      </div>
+      <div class="grid-4">
+        <div class="card problem-card">
+          <div class="quote-mark">"</div>
+          <p class="body">A 15% code stacks on a product that's already on sale. You find the double discount in your margin report — after the order shipped.</p>
+          <div class="src">The double-discount disaster</div>
+        </div>
+        <div class="card problem-card">
+          <div class="quote-mark">"</div>
+          <p class="body">Merchants have filed feature requests on the Shopify forums for a "not eligible for discount codes" checkbox. It still doesn't exist.</p>
+          <div class="src">No native exclusion setting</div>
+        </div>
+        <div class="card problem-card">
+          <div class="quote-mark">"</div>
+          <p class="body">A customer orders 6 giant plushies on flat-rate shipping. Past a certain quantity, the parcel jumps a carrier price tier — and the order loses money.</p>
+          <div class="src">The shipping-margin problem</div>
+        </div>
+        <div class="card problem-card">
+          <div class="quote-mark">"</div>
+          <p class="body">A limited edition drops. Without a per-order cap, resellers empty the entire stock in one checkout before real customers get a chance.</p>
+          <div class="src">The launch-protection problem</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== 02 FEATURES ===================== -->
+  <section id="features" class="section--tint">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow"><span class="num">02</span> What makes CartRules different</span>
+        <h2>Built around the <span class="accent">one combo</span> merchants actually need.</h2>
+        <p>Six principles behind CartRules — each one addresses a specific gap in the discount-code-exclusion and order-limit apps already on the App Store.</p>
+      </div>
+      <div class="grid-3">
+        <div class="card principle-card">
+          <div class="idx">01 — TWO RULES, ONE APP</div>
+          <h3>Discounts and quantity, together.</h3>
+          <p>Order-limit apps don't touch discounts. Discount suites don't touch quantity. CartRules does both, in one tiny app, at a fraction of the price.</p>
+        </div>
+        <div class="card principle-card">
+          <div class="idx">02 — 3-STEP WIZARD</div>
+          <h3>Native Polaris. No clutter.</h3>
+          <p>Rule type → products → message. Three screens, no settings maze. Built for a busy, non-technical merchant, not a power user.</p>
+        </div>
+        <div class="card principle-card">
+          <div class="idx">03 — YOUR OWN WORDS</div>
+          <h3>A custom message per rule.</h3>
+          <p>A limit without explanation looks like a bug. Write the customer-facing message yourself, in any language — French, Japanese, anything.</p>
+        </div>
+        <div class="card principle-card">
+          <div class="idx">04 — TARGET LIKE YOU THINK</div>
+          <h3>Product, collection, or tag.</h3>
+          <p>Tag a rule once — <span class="mono">no-promo</span>, <span class="mono">heavy-item</span> — and every future product with that tag is covered automatically.</p>
+        </div>
+        <div class="card principle-card">
+          <div class="idx">05 — POLITE, NOT BROKEN</div>
+          <h3>Corrected, never blocked blind.</h3>
+          <p>Quantity auto-adjusts in the cart with a clear note. A blocked discount code shows your message instead of a generic checkout error.</p>
+        </div>
+        <div class="card principle-card">
+          <div class="idx">06 — FLAT PRICE</div>
+          <h3>No revenue share, ever.</h3>
+          <p>One flat monthly price. We undercut the category leader while doing the one combo it explicitly refuses to build.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== 03 COMPARISON ===================== -->
+  <section id="compare">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow"><span class="num">03</span> Versus the rest of the market</span>
+        <h2>The differences are concrete.</h2>
+        <p>A side-by-side against the established order-limit apps and the big discount suites — based on our own market research, September 2026.</p>
+      </div>
+      <div class="table-scroll">
+        <table class="compare">
+          <thead>
+            <tr>
+              <th>Feature</th>
+              <th>Order-limit apps</th>
+              <th>Discount suites</th>
+              <th class="us">CartRules<span class="sub">recommended</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Quantity limits per order</td><td class="yes">✓</td><td class="no">—</td><td class="us">✓</td></tr>
+            <tr><td>Discount-code exclusion</td><td class="no">—</td><td class="yes">via app-managed discounts</td><td class="us">✓</td></tr>
+            <tr><td>Target by product / collection / tag</td><td class="no">basic</td><td class="no">collections only</td><td class="us">✓ all three</td></tr>
+            <tr><td>Custom message, any language</td><td class="no">English-only on cheap plans</td><td class="no">—</td><td class="us">✓</td></tr>
+            <tr><td>Rules dashboard with pause/activate</td><td class="no">limited</td><td class="no">buried in settings</td><td class="us">✓</td></tr>
+            <tr><td>Cart quantity auto-adjust</td><td class="no">—</td><td class="no">—</td><td class="us">✓</td></tr>
+            <tr><td>Must move all discounts into the app</td><td class="no">n/a</td><td class="yes">yes, required</td><td class="us">no</td></tr>
+            <tr><td>Entry price</td><td>3.99–20 USD/mo</td><td>10–30 USD/mo</td><td class="us">Free</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== 04 HOW IT WORKS ===================== -->
+  <section id="how-it-works" class="section--tint">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow"><span class="num">04</span> How it works</span>
+        <h2>Your first rule, in under 3 minutes.</h2>
+        <p>No documentation required to get started — but if you want the deep, step-by-step version with every screen explained, the full guide is one click away.</p>
+      </div>
+
+      <div class="howit-steps">
+        <div class="howit-step">
+          <div class="n">1</div>
+          <h4>Pick a rule type</h4>
+          <p>Block discount codes, or limit quantity per order. Pick one to start — you can create as many rules as your plan allows.</p>
+        </div>
+        <div class="howit-step">
+          <div class="n">2</div>
+          <h4>Choose products</h4>
+          <p>By individual product, by collection, or by tag — tag-based rules apply automatically to every future product with that tag.</p>
+        </div>
+        <div class="howit-step">
+          <div class="n">3</div>
+          <h4>Write the message</h4>
+          <p>One line, in your own words, in your own language. Save &amp; activate — it's enforced at checkout immediately.</p>
+        </div>
+      </div>
+
+      <div class="wizard">
+        <div class="wizard__steps">
+          <div class="step is-active"><span class="n">1</span>Rule type</div>
+          <div class="step"><span class="n">2</span>Products</div>
+          <div class="step"><span class="n">3</span>Message</div>
+        </div>
+        <div class="wizard__body">
+          <div class="wizard__q">Step 1 — What kind of rule?</div>
+          <div class="choice-row">
+            <div class="choice is-picked">Block discount codes</div>
+            <div class="choice">Limit quantity per order</div>
+          </div>
+          <div class="field-note">Select by tag, collection, or individual products on the next step.</div>
+          <div class="tag-result">Tag = no-promo · 12 products found</div>
+        </div>
+      </div>
+
+      <div class="guide-cta" style="margin-top: 32px;">
+        <div>
+          <h3>Want every screen, explained?</h3>
+          <p>The full guide walks through installation, both rule types, the dashboard, what customers see, and troubleshooting — everything needed to run CartRules without asking anyone.</p>
+        </div>
+        <a href="guide.html" class="btn btn--primary">Open the guide →</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== 05 PRICING ===================== -->
+  <section id="pricing">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow"><span class="num">05</span> Plans &amp; pricing</span>
+        <h2>Flat price. No revenue share.</h2>
+        <p>No transaction fees, no percentage cut of sales. Upgrade, downgrade, or cancel any time from your Shopify admin.</p>
+      </div>
+      <div class="pricing-grid">
+        <div class="plan">
+          <div class="plan__name">Free</div>
+          <div class="plan__price">$0<span class="per">/mo</span></div>
+          <p class="plan__desc">Try both rule types on a small catalog.</p>
+          <ul class="plan__list">
+            <li>3 active rules</li>
+            <li>Both rule types</li>
+            <li>Default customer messages</li>
+            <li>Product &amp; collection targeting</li>
+          </ul>
+          <div class="plan__cta"><a href="guide.html#quick-start" class="btn btn--ghost btn--block">Start free</a></div>
+        </div>
+        <div class="plan plan--pop">
+          <span class="plan__badge">Most popular</span>
+          <div class="plan__name">Growth</div>
+          <div class="plan__price">$4.99<span class="per">/mo</span></div>
+          <p class="plan__desc">For stores actively protecting margin.</p>
+          <ul class="plan__list">
+            <li>Unlimited rules</li>
+            <li>Custom messages, any language</li>
+            <li>Tag &amp; collection targeting</li>
+            <li>Email support</li>
+          </ul>
+          <div class="plan__cta"><a href="guide.html" class="btn btn--primary btn--block">Choose Growth</a></div>
+        </div>
+        <div class="plan">
+          <div class="plan__name">Pro</div>
+          <div class="plan__price">$9.99<span class="per">/mo</span></div>
+          <p class="plan__desc">For high-volume, high-touch stores.</p>
+          <ul class="plan__list">
+            <li>Everything in Growth</li>
+            <li>Product-page notices</li>
+            <li>Per-customer limits (v2)</li>
+            <li>Priority support</li>
+          </ul>
+          <div class="plan__cta"><a href="guide.html" class="btn btn--ghost btn--block">Choose Pro</a></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== 06 ROADMAP ===================== -->
+  <section id="roadmap" class="section--tint">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow"><span class="num">06</span> What's next</span>
+        <h2>On the roadmap.</h2>
+        <p>V2 ideas we're planning after v1 is live on the App Store. Built around what merchants actually ask for — no fixed dates.</p>
+      </div>
+      <div class="roadmap-grid">
+        <div class="roadmap-card">
+          <span class="status-tag planned">Planned</span>
+          <h4>Per-customer limits across orders</h4>
+          <p>Cap total quantity per customer across multiple orders, not just within a single cart — closes the "reorder to bypass" loophole.</p>
+        </div>
+        <div class="roadmap-card">
+          <span class="status-tag planned">Planned</span>
+          <h4>Customer-tag exceptions</h4>
+          <p>Let wholesale or VIP customer tags bypass a quantity cap, so B2B orders aren't blocked by a rule meant for retail shoppers.</p>
+        </div>
+        <div class="roadmap-card">
+          <span class="status-tag exploring">Exploring</span>
+          <h4>Minimum quantity rules</h4>
+          <p>The inverse of a max-quantity rule — require a minimum order size on products where small orders don't cover fulfillment cost.</p>
+        </div>
+        <div class="roadmap-card">
+          <span class="status-tag exploring">Exploring</span>
+          <h4>Scheduled rules</h4>
+          <p>Set a rule to activate and expire automatically — useful for time-boxed launches and short discount blackout windows.</p>
+        </div>
+        <div class="roadmap-card">
+          <span class="status-tag exploring">Exploring</span>
+          <h4>Rule analytics</h4>
+          <p>"This rule triggered 45 times this month" — see which rules are actually protecting margin, and which ones to retire.</p>
+        </div>
+        <div class="roadmap-card">
+          <span class="status-tag exploring">Exploring</span>
+          <h4>Product-page notices</h4>
+          <p>Show "max 2 per order" directly on the product page via a lightweight theme app extension, so customers see the limit before adding to cart.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== 07 FAQ ===================== -->
+  <section id="faq">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow"><span class="num">07</span> Frequently asked</span>
+        <h2>Questions, answered.</h2>
+        <p>The short version. For the full walkthrough of every screen, see the <a href="guide.html" style="color:var(--accent);">complete guide</a>.</p>
+      </div>
+      <div class="faq-list">
+
+        <div class="faq-item">
+          <button class="faq-q" aria-expanded="false">What exactly does a "No discount codes" rule do?<span class="icon">+</span></button>
+          <div class="faq-a"><div class="faq-a__inner">It excludes the products, collection, or tag you choose from every discount code at checkout. If a shopper applies a code that touches an excluded product, checkout blocks the code and shows your custom message instead of applying a partial or incorrect discount.</div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q" aria-expanded="false">What does "Max quantity per order" actually limit?<span class="icon">+</span></button>
+          <div class="faq-a"><div class="faq-a__inner">It caps how many units of a product a customer can add in a single order. If they try to add more, CartRules auto-adjusts the cart quantity down to the limit and shows a note explaining why. It does not currently track quantity across separate orders — that's on the v2 roadmap.</div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q" aria-expanded="false">Can I target a collection or tag instead of picking every product?<span class="icon">+</span></button>
+          <div class="faq-a"><div class="faq-a__inner">Yes — every rule can target individual products, a collection, or a tag. Tag-based rules are the most hands-off: tag a product once and it's covered by the rule automatically, including products you add after the rule was created.</div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q" aria-expanded="false">Does CartRules require Shopify Plus?<span class="icon">+</span></button>
+          <div class="faq-a"><div class="faq-a__inner">No. CartRules runs on Shopify Functions for cart, checkout, and discount validation — all supported on standard Shopify plans. You don't need Plus to use either rule type.</div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q" aria-expanded="false">What happens when I pause a rule instead of deleting it?<span class="icon">+</span></button>
+          <div class="faq-a"><div class="faq-a__inner">A paused rule stops being enforced immediately but stays saved with all its settings — products, targeting, and message. Reactivate it any time from the rules dashboard without rebuilding it from scratch.</div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q" aria-expanded="false">Can customer messages be written in my own language?<span class="icon">+</span></button>
+          <div class="faq-a"><div class="faq-a__inner">Yes. Every rule has a free-text message field — write it in French, Japanese, or any language your customers read. CartRules displays it exactly as written, accents and non-Latin characters included.</div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q" aria-expanded="false">How is this different from a full discount-suite app?<span class="icon">+</span></button>
+          <div class="faq-a"><div class="faq-a__inner">Discount suites require you to move all of your discounts into the app to get exclusion behavior. CartRules doesn't touch your existing discount codes — it only blocks them on the specific products you choose, so your current setup keeps working.</div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q" aria-expanded="false">What's included on the Free plan?<span class="icon">+</span></button>
+          <div class="faq-a"><div class="faq-a__inner">Up to 3 active rules, both rule types, product and collection targeting, and default customer messages — enough to try CartRules on a small catalog before upgrading to Growth for unlimited rules and custom messages.</div></div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-q" aria-expanded="false">Where do I get help if I'm stuck?<span class="icon">+</span></button>
+          <div class="faq-a"><div class="faq-a__inner">Start with the <a href="guide.html" style="color:var(--accent);">full guide</a> — it covers installation through troubleshooting. Still stuck? Reach support directly, see the contact details in the footer below.</div></div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== 08 SUPPORT ===================== -->
+  <section id="support" class="section--tint">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow"><span class="num">08</span> Support</span>
+        <h2>Get in touch, or read the guide first.</h2>
+        <p>Whether you're stuck on a rule, found a bug, or have a feature request — we read everything and reply within 24 hours.</p>
+      </div>
+
+      <div class="contact-card">
+        <div class="contact-info">
+          <h3>Get in touch<br>or read the guide first.</h3>
+          <p>CartRules is owned end-to-end by one developer at MPC Trades — the code, the App Store listing, and the support inbox. There's no ticket queue and no outsourced help desk in between: your message goes straight to them.</p>
+
+          <div class="contact-row">
+            <span class="contact-row__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="m4 6 8 7 8-7"/></svg></span>
+            <div>
+              <div class="lbl">Email</div>
+              <a href="mailto:team@mpctrades.com" class="val">team@mpctrades.com</a>
+            </div>
+          </div>
+          <div class="contact-row">
+            <span class="contact-row__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></span>
+            <div>
+              <div class="lbl">Response time</div>
+              <div class="val">Within 24 hours</div>
+            </div>
+          </div>
+          <div class="contact-row">
+            <span class="contact-row__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-3.9 3.6-7 8-7s8 3.1 8 7"/></svg></span>
+            <div>
+              <div class="lbl">Founder</div>
+              <div class="val">Arthur · MPC Trades App Factory</div>
+            </div>
+          </div>
+        </div>
+
+        <form class="contact-form" id="support-form">
+          <div class="cf-row cf-row--split">
+            <div class="cf-field">
+              <label for="cf-name">Your name</label>
+              <input type="text" id="cf-name" name="name" placeholder="Jane Smith" required />
+            </div>
+            <div class="cf-field">
+              <label for="cf-email">Email address</label>
+              <input type="email" id="cf-email" name="email" placeholder="jane@yourstore.com" required />
+            </div>
+          </div>
+          <div class="cf-field">
+            <label for="cf-store">Shopify store URL (optional)</label>
+            <input type="text" id="cf-store" name="store" placeholder="yourstore.myshopify.com" />
+          </div>
+          <div class="cf-field">
+            <label for="cf-topic">What can we help with?</label>
+            <select id="cf-topic" name="topic">
+              <option>Setup question</option>
+              <option>Bug report</option>
+              <option>Feature request</option>
+              <option>Pricing question</option>
+              <option>Something else</option>
+            </select>
+          </div>
+          <div class="cf-field">
+            <label for="cf-message">Message</label>
+            <textarea id="cf-message" name="message" rows="4" placeholder="Tell us what rule you're trying to set up, or what went wrong…" required></textarea>
+          </div>
+          <button type="submit" class="btn btn--primary btn--block">Send message →</button>
+          <p class="cf-note">We reply within 24 hours. This opens your email app with the message pre-filled.</p>
+        </form>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-top">
+      <div class="footer-brand">
+        <a href="index.html" class="brand"><img src="logo-white.png" alt="CartRules" class="brand__mark">CartRules</a>
+        <p>Simple purchase rules, per product. Block discount codes, limit quantity per order — enforced automatically at checkout. A product by MPC Trades.</p>
+      </div>
+      <div class="footer-cols">
+        <div class="footer-col">
+          <h5>Product</h5>
+          <a href="#features">Features</a>
+          <a href="#how-it-works">How it works</a>
+          <a href="#pricing">Pricing</a>
+          <a href="#roadmap">Roadmap</a>
+        </div>
+        <div class="footer-col">
+          <h5>Learn</h5>
+          <a href="guide.html">Full guide</a>
+          <a href="#faq">FAQ</a>
+          <a href="#compare">Comparison</a>
+        </div>
+        <div class="footer-col">
+          <h5>Support</h5>
+          <a href="mailto:team@mpctrades.com">team@mpctrades.com</a>
+          <a href="guide.html#troubleshooting">Troubleshooting</a>
+          <a href="#support">Contact support</a>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 MPC Trades. Working title — final app name to be confirmed.</span>
+      <span>v1.0 · CartRules</span>
+    </div>
+  </div>
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>
