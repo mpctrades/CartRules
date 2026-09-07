@@ -1,0 +1,4 @@
+{
+  "name": "CartRules validation",
+  "description": "Blocks checkout when a max-quantity or no-discount-code rule is violated."
+}

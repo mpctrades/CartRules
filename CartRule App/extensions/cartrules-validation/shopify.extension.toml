@@ -1,0 +1,22 @@
+# Shopify Function extension config for the "cart.validations.generate.run"
+# target (https://shopify.dev/docs/api/functions/latest/cart-and-checkout-validation).
+# Reconciled against a CLI-generated reference extension (`shopify app
+# generate extension --template cart_checkout_validation`) on 2026-09-04.
+api_version = "2026-07"
+uid = "1e531093-4272-5a7b-bdea-5c4a6392c5ba9ec20e65"
+
+[[extensions]]
+name = "CartRules validation"
+handle = "cartrules-validation"
+type = "function"
+description = "Blocks checkout when a max-quantity or no-discount-code rule is violated."
+
+  [[extensions.targeting]]
+  target = "cart.validations.generate.run"
+  input_query = "src/cart_validations_generate_run.graphql"
+  export = "cart-validations-generate-run"
+
+[extensions.build]
+command = ""
+path = "dist/function.wasm"
+watch = ["src/**/*.js", "src/**/*.graphql"]

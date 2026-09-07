@@ -1,0 +1,44 @@
+{% comment %}
+  CartRules — product page notice (F5 "warn customers early").
+  Merchant adds this block to the product template from the theme editor.
+  Reads the same `cartrules.rules_cache` shop metafield the checkout
+  Function reads (see app/models/rules.server.js `syncRulesCache`) —
+  requires the metafield definition to have storefront read access, which
+  `ensureRulesCacheMetafieldDefinition` sets up.
+{% endcomment %}
+
+{% assign cache = shop.metafields.cartrules.rules_cache %}
+{% if cache and cache.enabled != false and cache.productNoticesEnabled != false %}
+  {% assign product_gid_suffix = product.id | append: '' %}
+  {% for rule in cache.rules %}
+    {% if rule.ruleType == 'max_quantity' %}
+      {% assign matches = false %}
+      {% if rule.matchType == 'product_id' %}
+        {% for pid in rule.productIds %}
+          {% assign pid_suffix = pid | split: '/' | last %}
+          {% if pid_suffix == product_gid_suffix %}
+            {% assign matches = true %}
+          {% endif %}
+        {% endfor %}
+      {% endif %}
+
+      {% if matches %}
+        <div class="cartrules-notice" data-cartrules-max="{{ rule.maxQuantity }}">
+          {% if rule.message != blank %}
+            {{ rule.message }}
+          {% else %}
+            Maximum {{ rule.maxQuantity }} per order for this item.
+          {% endif %}
+        </div>
+      {% endif %}
+    {% endif %}
+  {% endfor %}
+{% endif %}
+
+{% schema %}
+{
+  "name": "Max quantity notice",
+  "target": "section",
+  "settings": []
+}
+{% endschema %}

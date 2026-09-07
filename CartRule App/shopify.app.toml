@@ -1,0 +1,71 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "dc1d974d199f006dabfec9d395bae2fd"
+name = "CartRules"
+application_url = "https://cartrules.myshopify.com"
+embedded = true
+
+[build]
+include_config_on_deploy = true
+automatically_update_urls_on_dev = true
+
+[webhooks]
+api_version = "2026-07"
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/customers/data_request"
+  compliance_topics = [ "customers/data_request" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/customers/redact"
+  compliance_topics = [ "customers/redact" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/shop/redact"
+  compliance_topics = [ "shop/redact" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/scopes_update"
+  topics = [ "app/scopes_update" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/uninstalled"
+  topics = [ "app/uninstalled" ]
+
+  # DISABLED until Protected Customer Data access is approved for this app
+  # (Partner Dashboard → this app → Distribution → API access). Shopify
+  # refuses to even register a subscription to a customer-data-bearing
+  # topic like orders/create without that approval — every `shopify app
+  # dev`/deploy fails outright with "This app is not approved to subscribe
+  # to webhook topics containing protected customer data" while this is
+  # active. Feeds the dashboard's KPI cards / activity log / activity chart
+  # (app/models/events.server.js, app/routes/webhooks.orders.create.jsx) —
+  # re-enable this block (and read_orders below) once access is granted.
+  # [[webhooks.subscriptions]]
+  # uri = "/webhooks/orders/create"
+  # topics = [ "orders/create" ]
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+# CartRules reads products (for the rule wizard's targeting), discounts (to
+# detect when a native code touches an excluded product), and read/writes
+# the metaobjects that ARE the app's actual data (see README "Does this app
+# need a database?"). No read_metafields/write_metafields scope: those
+# are invalid/unnecessary here — the app owns the "cartrules" metafield
+# namespace/definitions it reads and writes, and apps always have automatic
+# access to metafields they own. read_metaobject_definitions/
+# write_metaobject_definitions are separate from read_metaobjects/
+# write_metaobjects: the app manages its OWN "cartrules_rule" metaobject
+# TYPE (ensureMetaobjectDefinition), not just metaobject records, so it
+# needs both pairs. read_orders is NOT requested here — see the disabled
+# orders/create webhook above for why (Protected Customer Data gate);
+# add it back alongside that webhook once access is approved.
+scopes = "read_products,read_discounts,read_metaobjects,write_metaobjects,read_metaobject_definitions,write_metaobject_definitions"
+optional_scopes = [ ]
+use_legacy_install_flow = false
+
+[auth]
+redirect_urls = [ ]
+
+[pos]
+embedded = false

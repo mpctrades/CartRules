@@ -1,0 +1,6 @@
+# Theme app extension — optional per the brief ("Cart helper (optional)").
+# The merchant drags the "Max quantity notice" block onto their product
+# template from the theme editor; nothing here runs unless they do that.
+name = "CartRules notice"
+type = "theme"
+uid = "f1b4df7a-5246-f6f9-f6a1-dc37782c57e1fca6df09"

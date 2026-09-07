@@ -1,0 +1,35 @@
+# Input query for the cart.validations.generate.run target.
+#
+# There's no `product.tags` field in this Function schema (only
+# `hasAnyTag`/`hasTags`, which need a fixed tag list at query-authoring
+# time — no good for merchant-defined, runtime rules). So tag- and
+# collection-targeted rules are pre-expanded into product IDs by the admin
+# app before caching (see app/models/rules.server.js syncRulesCache) and
+# every rule this Function sees is matchType "product_id" — only
+# product.id is needed here.
+query Input {
+  cart {
+    lines {
+      quantity
+      merchandise {
+        __typename
+        ... on ProductVariant {
+          id
+          product {
+            id
+          }
+        }
+      }
+      discountAllocations {
+        discountedAmount {
+          amount
+        }
+      }
+    }
+  }
+  shop {
+    metafield(namespace: "cartrules", key: "rules_cache") {
+      value
+    }
+  }
+}

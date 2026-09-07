@@ -1,0 +1,10 @@
+node_modules
+/build
+.cache
+.env
+dev.sqlite
+dev.sqlite-journal
+.DS_Store
+.shopify
+extensions/*/dist
+extensions/*/node_modules

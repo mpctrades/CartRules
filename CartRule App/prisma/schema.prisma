@@ -1,0 +1,51 @@
+// OAuth sessions, plus (as of the dashboard/activity-log rework) a real
+// event log. Rule DEFINITIONS still live in Shopify metaobjects/metafields
+// (see README "Why no database?") — that hasn't changed. What changed: the
+// dashboard KPIs, activity feed, and rule-activity chart need per-event
+// history over time, which a single metafield JSON blob can't hold. Those
+// live here instead, in RuleEvent.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Session {
+  id            String    @id
+  shop          String
+  state         String
+  isOnline      Boolean   @default(false)
+  scope         String?
+  expires       DateTime?
+  accessToken   String
+  userId        BigInt?
+  firstName     String?
+  lastName      String?
+  email         String?
+  accountOwner  Boolean   @default(false)
+  locale        String?
+  collaborator  Boolean?  @default(false)
+  emailVerified Boolean?  @default(false)
+}
+
+// One row per rule that actually fired on a real order line, recorded from
+// the orders/create webhook (see app/models/events.server.js for exactly
+// what's read off the order — never anything customer-identifying).
+model RuleEvent {
+  id           String   @id @default(cuid())
+  shop         String
+  orderId      String
+  ruleId       String
+  ruleTitle    String
+  ruleType     String // "no_discount" | "max_quantity"
+  productId    String?
+  productTitle String?
+  detail       String? // e.g. "Attempted 5, allowed 2" or discount code "SAVE20"
+  createdAt    DateTime @default(now())
+
+  @@index([shop, createdAt])
+  @@index([shop, ruleId])
+}

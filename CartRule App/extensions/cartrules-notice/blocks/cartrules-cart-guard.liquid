@@ -1,0 +1,23 @@
+{% comment %}
+  CartRules — cart page quantity guard (F5 "auto-adjust in cart").
+  Add this block anywhere on the cart page template. It inlines the active
+  max-quantity rules as JSON and lets cartrules-notice.js clamp quantity
+  inputs client-side, matching mockup Screen 3 ("Quantity was adjusted.").
+  This is best-effort scaffolding, NOT tested against a live theme/cart —
+  cart markup (input selectors, line item id attributes) varies a lot
+  between themes, see the TODO in assets/cartrules-notice.js.
+{% endcomment %}
+
+{% assign cache = shop.metafields.cartrules.rules_cache %}
+<script type="application/json" id="cartrules-rules-data">
+  {% if cache and cache.enabled != false and cache.cartNoticesEnabled != false %}{{ cache | json }}{% else %}{"rules":[]}{% endif %}
+</script>
+<script src="{{ 'cartrules-notice.js' | asset_url }}" defer></script>
+
+{% schema %}
+{
+  "name": "Cart quantity guard",
+  "target": "section",
+  "settings": []
+}
+{% endschema %}
