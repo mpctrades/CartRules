@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { json } from "@remix-run/node";
-import { useLoaderData, useNavigate, useSubmit, useFetcher } from "@remix-run/react";
+import { useLoaderData, useNavigate, useFetcher } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -26,6 +26,7 @@ import { authenticate, BILLING_PLANS, FREE_PLAN_RULE_LIMIT } from "../shopify.se
 import { listRules, readRulesCache, setRuleStatus, deleteRule, duplicateRule } from "../models/rules.server";
 import { getTriggerCountsByRule } from "../models/events.server";
 import { RULE_TYPES, TARGET_TYPES, RULE_STATUS } from "../models/ruleConstants";
+import { useActionToast } from "../utils/useActionToast";
 
 // F4: "Rules list with active / paused status" — one screen to see and
 // control everything, matching brief mockup Screen 1 (and the "Rules" page
@@ -60,13 +61,24 @@ export const action = async ({ request }) => {
   const intent = formData.get("intent");
   const id = formData.get("id");
 
+  // title comes from the client, which already has it from the loader's
+  // rules list — avoids an extra listRules() metaobjects query per action
+  // just to look up a string for the toast message.
+  const title = formData.get("title") || "Rule";
+
   if (intent === "toggle") {
     const nextStatus = formData.get("nextStatus");
     await setRuleStatus(admin, id, nextStatus);
+    return json({
+      ok: true,
+      toast: `"${title}" ${nextStatus === RULE_STATUS.ACTIVE ? "activated" : "paused"}`,
+    });
   } else if (intent === "delete") {
     await deleteRule(admin, id);
+    return json({ ok: true, toast: `"${title}" deleted` });
   } else if (intent === "duplicate") {
     await duplicateRule(admin, id);
+    return json({ ok: true, toast: `"${title}" duplicated as a paused copy` });
   } else if (intent === "test") {
     // Simulates the checkout Function's decision without a real order —
     // reads the exact same rules_cache the Function reads (see
@@ -184,11 +196,71 @@ function RuleActionsMenu({ rule, onEdit, onDuplicate, onViewActivity, onTest, on
   );
 }
 
+// Each row owns its own fetcher instead of the table sharing one — a
+// shared fetcher aborts its previous in-flight request whenever a second
+// row submits before the first settles (React Router aborts by fetcher
+// key), which would silently drop the first row's toast and leave its
+// busy state stuck. A per-row fetcher also makes `busy` a plain derived
+// value (fetcher.state !== "idle") instead of separately-tracked state
+// that only got cleared on the success path.
+function RuleRow({ rule, index, navigate, onOpenTest }) {
+  const fetcher = useFetcher();
+  const busy = fetcher.state !== "idle";
+  useActionToast(fetcher);
+
+  const submitAction = (intent, extra = {}) => {
+    fetcher.submit({ intent, id: rule.id, title: rule.title || describeType(rule), ...extra }, { method: "post" });
+  };
+
+  return (
+    <IndexTable.Row
+      id={rule.id}
+      position={index}
+      onClick={() => navigate(`/app/rules/${encodeURIComponent(rule.id)}`)}
+    >
+      <IndexTable.Cell>
+        <BlockStack gap="050">
+          <Text fontWeight="bold" as="span">
+            {rule.title || describeType(rule)}
+          </Text>
+          <Text as="span" tone="subdued" variant="bodySm">
+            {describeSummary(rule)}
+          </Text>
+        </BlockStack>
+      </IndexTable.Cell>
+      <IndexTable.Cell>{describeType(rule)}</IndexTable.Cell>
+      <IndexTable.Cell>{describeTarget(rule)}</IndexTable.Cell>
+      <IndexTable.Cell>{rule.triggerCount}</IndexTable.Cell>
+      <IndexTable.Cell>
+        <Badge tone={rule.status === RULE_STATUS.ACTIVE ? "success" : undefined}>
+          {rule.status === RULE_STATUS.ACTIVE ? "Active" : "Paused"}
+        </Badge>
+      </IndexTable.Cell>
+      <IndexTable.Cell>
+        <div onClick={(e) => e.stopPropagation()}>
+          <RuleActionsMenu
+            rule={rule}
+            busy={busy}
+            onEdit={() => navigate(`/app/rules/${encodeURIComponent(rule.id)}`)}
+            onDuplicate={() => submitAction("duplicate")}
+            onViewActivity={() => navigate(`/app/activity?rule=${encodeURIComponent(rule.id)}`)}
+            onTest={() => onOpenTest(rule)}
+            onToggle={() =>
+              submitAction("toggle", {
+                nextStatus: rule.status === RULE_STATUS.ACTIVE ? RULE_STATUS.PAUSED : RULE_STATUS.ACTIVE,
+              })
+            }
+            onDelete={() => submitAction("delete")}
+          />
+        </div>
+      </IndexTable.Cell>
+    </IndexTable.Row>
+  );
+}
+
 export default function RulesList() {
   const { rules, activeCount, freeLimit, isFreePlan } = useLoaderData();
   const navigate = useNavigate();
-  const submit = useSubmit();
-  const [pendingId, setPendingId] = useState(null);
   const [tab, setTab] = useState(0);
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -232,28 +304,6 @@ export default function RulesList() {
       },
       { method: "post" },
     );
-  };
-
-  const toggle = (rule) => {
-    setPendingId(rule.id);
-    submit(
-      {
-        intent: "toggle",
-        id: rule.id,
-        nextStatus: rule.status === RULE_STATUS.ACTIVE ? RULE_STATUS.PAUSED : RULE_STATUS.ACTIVE,
-      },
-      { method: "post" },
-    );
-  };
-
-  const remove = (rule) => {
-    setPendingId(rule.id);
-    submit({ intent: "delete", id: rule.id }, { method: "post" });
-  };
-
-  const duplicate = (rule) => {
-    setPendingId(rule.id);
-    submit({ intent: "duplicate", id: rule.id }, { method: "post" });
   };
 
   const tabCounts = useMemo(
@@ -357,45 +407,7 @@ export default function RulesList() {
               selectable={false}
             >
               {filteredRules.map((rule, index) => (
-                <IndexTable.Row
-                  id={rule.id}
-                  key={rule.id}
-                  position={index}
-                  onClick={() => navigate(`/app/rules/${encodeURIComponent(rule.id)}`)}
-                >
-                  <IndexTable.Cell>
-                    <BlockStack gap="050">
-                      <Text fontWeight="bold" as="span">
-                        {rule.title || describeType(rule)}
-                      </Text>
-                      <Text as="span" tone="subdued" variant="bodySm">
-                        {describeSummary(rule)}
-                      </Text>
-                    </BlockStack>
-                  </IndexTable.Cell>
-                  <IndexTable.Cell>{describeType(rule)}</IndexTable.Cell>
-                  <IndexTable.Cell>{describeTarget(rule)}</IndexTable.Cell>
-                  <IndexTable.Cell>{rule.triggerCount}</IndexTable.Cell>
-                  <IndexTable.Cell>
-                    <Badge tone={rule.status === RULE_STATUS.ACTIVE ? "success" : undefined}>
-                      {rule.status === RULE_STATUS.ACTIVE ? "Active" : "Paused"}
-                    </Badge>
-                  </IndexTable.Cell>
-                  <IndexTable.Cell>
-                    <div onClick={(e) => e.stopPropagation()}>
-                      <RuleActionsMenu
-                        rule={rule}
-                        busy={pendingId === rule.id}
-                        onEdit={() => navigate(`/app/rules/${encodeURIComponent(rule.id)}`)}
-                        onDuplicate={() => duplicate(rule)}
-                        onViewActivity={() => navigate(`/app/activity?rule=${encodeURIComponent(rule.id)}`)}
-                        onTest={() => openTest(rule)}
-                        onToggle={() => toggle(rule)}
-                        onDelete={() => remove(rule)}
-                      />
-                    </div>
-                  </IndexTable.Cell>
-                </IndexTable.Row>
+                <RuleRow key={rule.id} rule={rule} index={index} navigate={navigate} onOpenTest={openTest} />
               ))}
             </IndexTable>
           )}

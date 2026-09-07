@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { json, redirect } from "@remix-run/node";
+import { json } from "@remix-run/node";
 import { useFetcher, useLoaderData, useNavigate } from "@remix-run/react";
 import {
   Page,
@@ -14,6 +14,7 @@ import { authenticate } from "../shopify.server";
 import { listRules, updateRule } from "../models/rules.server";
 import { RULE_TYPES, TARGET_TYPES } from "../models/ruleConstants";
 import RuleTypeCards from "../components/RuleTypeCards";
+import { redirectWithToast } from "../utils/toastRedirect.server";
 
 // Same 3-step shape as app.rules.new.jsx, pre-filled for editing.
 export const loader = async ({ request, params }) => {
@@ -30,8 +31,9 @@ export const action = async ({ request, params }) => {
   const formData = await request.formData();
   const gid = decodeURIComponent(params.id);
 
+  const title = formData.get("title");
   await updateRule(admin, gid, {
-    title: formData.get("title"),
+    title,
     ruleType: formData.get("ruleType"),
     targetType: formData.get("targetType"),
     targetValue: formData.get("targetValue"),
@@ -39,7 +41,7 @@ export const action = async ({ request, params }) => {
     message: formData.get("message"),
     status: formData.get("status"),
   });
-  return redirect("/app");
+  return redirectWithToast("/app", `Rule "${title || "Untitled rule"}" updated`);
 };
 
 export default function EditRule() {

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { json, redirect } from "@remix-run/node";
+import { json } from "@remix-run/node";
 import { useFetcher, useLoaderData, useNavigate, useSearchParams } from "@remix-run/react";
 import {
   Page,
@@ -18,6 +18,7 @@ import { getSettings } from "../models/settings.server";
 import { RULE_TYPES, TARGET_TYPES, RULE_STATUS } from "../models/ruleConstants";
 import { FREE_PLAN_RULE_LIMIT } from "../shopify.server";
 import RuleTypeCards from "../components/RuleTypeCards";
+import { redirectWithToast } from "../utils/toastRedirect.server";
 
 export const loader = async ({ request }) => {
   const { admin } = await authenticate.admin(request);
@@ -132,7 +133,11 @@ export const action = async ({ request }) => {
         message,
         status: RULE_STATUS.PAUSED,
       });
-      return redirect("/app?limitReached=1");
+      return redirectWithToast(
+        "/app",
+        `Free plan limit reached — "${title}" was saved as paused. Upgrade to activate it.`,
+        { isError: true },
+      );
     }
 
     await createRule(admin, {
@@ -144,7 +149,7 @@ export const action = async ({ request }) => {
       message,
       status: RULE_STATUS.ACTIVE,
     });
-    return redirect("/app");
+    return redirectWithToast("/app", `Rule "${title}" created and activated`);
   }
 
   return json({ ok: false }, { status: 400 });

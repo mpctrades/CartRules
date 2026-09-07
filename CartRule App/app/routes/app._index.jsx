@@ -21,6 +21,7 @@ import { listRules, getSetupFlags, setSetupFlag } from "../models/rules.server";
 import { getKpis, getActivitySeries, getActivityFeed, hasAnyEvent } from "../models/events.server";
 import { getSettings } from "../models/settings.server";
 import { RULE_STATUS } from "../models/ruleConstants";
+import { useFlashToast } from "../utils/useFlashToast";
 
 const PERIODS = [
   { label: "Last 7 days", value: "7" },
@@ -84,6 +85,26 @@ export const action = async ({ request }) => {
   }
   return json({ ok: true });
 };
+
+// useFlashToast strips ?toast=/&toastId=/&toastError= right after showing
+// them (see app/utils/useFlashToast.js) via a normal searchParams update —
+// which by default triggers a full loader revalidation, doubling every
+// KPI/activity/rules query on top of the one the redirect itself already
+// ran. That param cleanup can't change what this loader returns, so skip
+// revalidating when it's the only thing that changed.
+export function shouldRevalidate({ currentUrl, nextUrl, defaultShouldRevalidate }) {
+  const strip = (url) => {
+    const params = new URLSearchParams(url.search);
+    params.delete("toast");
+    params.delete("toastId");
+    params.delete("toastError");
+    return params.toString();
+  };
+  if (currentUrl.pathname === nextUrl.pathname && strip(currentUrl) === strip(nextUrl)) {
+    return false;
+  }
+  return defaultShouldRevalidate;
+}
 
 function kpiHelpText(kpi) {
   if (kpi.value === 0 && (kpi.changePct === 0 || kpi.changePct == null)) {
@@ -264,6 +285,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const submit = useSubmit();
   const [searchParams, setSearchParams] = useSearchParams();
+  useFlashToast();
 
   const setParam = (key, value) => {
     searchParams.set(key, value);

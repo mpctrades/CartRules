@@ -1,11 +1,12 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { json } from "@remix-run/node";
 import { useFetcher, useLoaderData } from "@remix-run/react";
-import { Page, Card, BlockStack, InlineStack, Text, Checkbox, TextField, Button, Banner } from "@shopify/polaris";
+import { Page, Card, BlockStack, InlineStack, Text, Checkbox, TextField, Button } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { getSettings, setSettings } from "../models/settings.server";
 import { syncRulesCache } from "../models/rules.server";
 import { RULE_TYPES } from "../models/ruleConstants";
+import { useActionToast } from "../utils/useActionToast";
 
 // Settings live in the same shop metafield pattern as everything else in
 // this app (see getSetupFlags/setSetupFlag in rules.server.js) — no new
@@ -33,7 +34,7 @@ export const action = async ({ request }) => {
   });
   await syncRulesCache(admin);
 
-  return json({ ok: true, savedAt: Date.now() });
+  return json({ ok: true, toast: "Settings saved" });
 };
 
 export default function Settings() {
@@ -45,15 +46,8 @@ export default function Settings() {
   const [cartNoticesEnabled, setCartNoticesEnabled] = useState(settings.cartNoticesEnabled);
   const [messageNoDiscount, setMessageNoDiscount] = useState(settings.defaultMessages[RULE_TYPES.NO_DISCOUNT]);
   const [messageMaxQuantity, setMessageMaxQuantity] = useState(settings.defaultMessages[RULE_TYPES.MAX_QUANTITY]);
-  const [showSaved, setShowSaved] = useState(false);
 
-  useEffect(() => {
-    if (fetcher.state === "idle" && fetcher.data?.ok) {
-      setShowSaved(true);
-      const timeout = setTimeout(() => setShowSaved(false), 3000);
-      return () => clearTimeout(timeout);
-    }
-  }, [fetcher.data, fetcher.state]);
+  useActionToast(fetcher);
 
   const save = () => {
     fetcher.submit(
@@ -71,8 +65,6 @@ export default function Settings() {
   return (
     <Page title="Settings" subtitle="Control how CartRules enforces and messages, store-wide.">
       <BlockStack gap="400">
-        {showSaved ? <Banner tone="success">Settings saved.</Banner> : null}
-
         <Card>
           <BlockStack gap="300">
             <Text as="h2" variant="headingMd">
