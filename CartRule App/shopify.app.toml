@@ -2,7 +2,7 @@
 
 client_id = "dc1d974d199f006dabfec9d395bae2fd"
 name = "CartRules"
-application_url = "https://cartrules.myshopify.com"
+application_url = "https://dev.cartrule.mpctrades.com"
 embedded = true
 
 [build]
@@ -65,7 +65,7 @@ optional_scopes = [ ]
 use_legacy_install_flow = false
 
 [auth]
-redirect_urls = [ ]
+redirect_urls = [ "https://dev.cartrule.mpctrades.com/auth/callback" ]
 
 [pos]
 embedded = false
