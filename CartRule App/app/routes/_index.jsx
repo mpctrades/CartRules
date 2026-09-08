@@ -1,5 +1,4 @@
 import { redirect } from "@remix-run/node";
-import { login } from "../shopify.server";
 
 // Shopify opens this URL (with a `shop` query param) both when a merchant
 // installs the app and on some re-auth flows. Bounce straight into the
@@ -13,7 +12,11 @@ export const loader = async ({ request }) => {
     // non-embedded /auth/login path instead.
     return redirect(`/app?${url.searchParams.toString()}`);
   }
-  return login(request);
+  // Someone opened the bare app URL directly (no shop context at all —
+  // not an install/re-auth bounce). /auth/login already has a working
+  // shop-domain form for this case; render nothing here instead of
+  // duplicating it.
+  return redirect("/auth/login");
 };
 
 export default function Index() {

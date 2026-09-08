@@ -18,6 +18,7 @@ import {
 import { ChartLineIcon, CartDiscountIcon, AlertTriangleIcon, ShieldCheckMarkIcon } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import { listRules, getSetupFlags, setSetupFlag } from "../models/rules.server";
+import { getThemeEditorDeepLink } from "../utils/themeEditor";
 import { getKpis, getActivitySeries, getActivityFeed, hasAnyEvent } from "../models/events.server";
 import { getSettings } from "../models/settings.server";
 import { RULE_STATUS } from "../models/ruleConstants";
@@ -209,7 +210,7 @@ function SetupChecklist({ checklist, shop, navigate, submit }) {
   const stepAction = (key) => {
     if (key === "createdRule" || key === "activatedRule") return () => navigate("/app/rules");
     if (key === "addedStorefrontMessages")
-      return () => window.open(`https://${shop}/admin/themes/current/editor`, "_blank");
+      return () => window.open(getThemeEditorDeepLink(shop), "_blank");
     return () => navigate("/app/rules");
   };
 

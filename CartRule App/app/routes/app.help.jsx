@@ -16,6 +16,7 @@ import {
 } from "@shopify/polaris";
 import { ChevronDownIcon, ChevronUpIcon } from "@shopify/polaris-icons";
 import { authenticate, BILLING_PLANS } from "../shopify.server";
+import { getThemeEditorDeepLink } from "../utils/themeEditor";
 
 const SUPPORT_EMAIL = "team@mpctrades.com";
 
@@ -236,7 +237,7 @@ export default function Help() {
                   <Text as="p" tone="subdued">
                     Show customers rule information on product and cart pages.
                   </Text>
-                  <Button onClick={() => window.open(`https://${shop}/admin/themes/current/editor`, "_blank")}>
+                  <Button onClick={() => window.open(getThemeEditorDeepLink(shop), "_blank")}>
                     Open theme editor
                   </Button>
                 </BlockStack>

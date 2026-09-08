@@ -13,12 +13,14 @@ export const loader = async ({ request }) => {
     isTest: process.env.NODE_ENV !== "production",
   });
   const currentPlan = hasActivePayment ? appSubscriptions[0]?.name : "Free";
+  const currentSubscriptionId = hasActivePayment ? appSubscriptions[0]?.id : null;
   const [activeRules, monthlyEvents] = await Promise.all([
     countActiveRules(admin),
     getMonthlyEventCount(session.shop),
   ]);
   return json({
     currentPlan,
+    currentSubscriptionId,
     activeRules,
     freeLimit: FREE_PLAN_RULE_LIMIT,
     isFreePlan: !hasActivePayment,
@@ -30,10 +32,21 @@ export const action = async ({ request }) => {
   const { billing } = await authenticate.admin(request);
   const formData = await request.formData();
   const plan = formData.get("plan");
+  const isTest = process.env.NODE_ENV !== "production";
+
+  // Downgrading to Free means cancelling the active subscription outright —
+  // Shopify billing has no $0 plan, so there's nothing to "request" here.
+  if (plan === "Free") {
+    const subscriptionId = formData.get("subscriptionId");
+    if (subscriptionId) {
+      await billing.cancel({ subscriptionId, isTest, prorate: true });
+    }
+    return json({ ok: true });
+  }
 
   return billing.request({
     plan,
-    isTest: process.env.NODE_ENV !== "production",
+    isTest,
     // Shopify redirects the merchant to approve the charge, then back here.
     returnUrl: `${process.env.SHOPIFY_APP_URL}/app/billing`,
   });
@@ -64,7 +77,8 @@ const PLAN_COPY = [
 ];
 
 export default function Billing() {
-  const { currentPlan, activeRules, freeLimit, isFreePlan, monthlyEvents } = useLoaderData();
+  const { currentPlan, currentSubscriptionId, activeRules, freeLimit, isFreePlan, monthlyEvents } =
+    useLoaderData();
   const submit = useSubmit();
 
   return (
@@ -126,6 +140,18 @@ export default function Billing() {
                     onClick={() => submit({ plan: plan.key }, { method: "post" })}
                   >
                     Upgrade to {plan.key}
+                  </Button>
+                ) : null}
+                {plan.key === "Free" && !isFreePlan ? (
+                  <Button
+                    onClick={() =>
+                      submit(
+                        { plan: "Free", subscriptionId: currentSubscriptionId ?? "" },
+                        { method: "post" },
+                      )
+                    }
+                  >
+                    Downgrade to Free
                   </Button>
                 ) : null}
               </BlockStack>
