@@ -15,6 +15,7 @@ import { listRules, updateRule } from "../models/rules.server";
 import { RULE_TYPES, TARGET_TYPES } from "../models/ruleConstants";
 import RuleTypeCards from "../components/RuleTypeCards";
 import { redirectWithToast } from "../utils/toastRedirect.server";
+import { Eyebrow } from "../components/brand";
 
 // Same 3-step shape as app.rules.new.jsx, pre-filled for editing.
 export const loader = async ({ request, params }) => {
@@ -73,6 +74,7 @@ export default function EditRule() {
   return (
     <Page title="Edit rule" backAction={{ content: "Rules", onAction: () => navigate("/app") }}>
       <BlockStack gap="400">
+        <Eyebrow>Edit rule</Eyebrow>
         <Card>
           <BlockStack gap="200">
             <Text as="h2" variant="headingMd">

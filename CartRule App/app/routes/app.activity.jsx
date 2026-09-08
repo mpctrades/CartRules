@@ -1,11 +1,12 @@
 import { useMemo, useState } from "react";
 import { json } from "@remix-run/node";
 import { useLoaderData, useNavigate, useSearchParams } from "@remix-run/react";
-import { Page, Card, BlockStack, InlineStack, Text, Select, Box, EmptyState, TextField, Button, Icon } from "@shopify/polaris";
+import { Page, Card, BlockStack, InlineStack, Text, Select, Box, EmptyState, TextField, Button } from "@shopify/polaris";
 import { AlertTriangleIcon, CartDiscountIcon } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import { getActivityFeed } from "../models/events.server";
 import { listRules } from "../models/rules.server";
+import { Eyebrow, IconChip } from "../components/brand";
 
 function eventIcon(ruleType) {
   return ruleType === "max_quantity"
@@ -91,6 +92,7 @@ export default function Activity() {
   return (
     <Page title="Activity" subtitle="See every rule CartRules has enforced.">
       <BlockStack gap="400">
+        <Eyebrow>Activity</Eyebrow>
         {ruleId ? (
           <InlineStack gap="200" blockAlign="center">
             <Text as="span" tone="subdued">
@@ -158,7 +160,7 @@ export default function Activity() {
                     <Box key={event.id} paddingBlock="300" borderBlockEndWidth="025" borderColor="border">
                       <InlineStack align="space-between" blockAlign="start" wrap={false}>
                         <InlineStack gap="200" blockAlign="start" wrap={false}>
-                          <Icon source={icon} tone={tone} />
+                          <IconChip icon={icon} tone={tone} />
                           <BlockStack gap="050">
                             <Text as="span" tone="subdued" variant="bodySm">
                               {formatDateTime(event.createdAt)} ·{" "}

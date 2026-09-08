@@ -19,6 +19,7 @@ import { RULE_TYPES, TARGET_TYPES, RULE_STATUS } from "../models/ruleConstants";
 import { FREE_PLAN_RULE_LIMIT } from "../shopify.server";
 import RuleTypeCards from "../components/RuleTypeCards";
 import { redirectWithToast } from "../utils/toastRedirect.server";
+import { Eyebrow, StepBadge } from "../components/brand";
 
 export const loader = async ({ request }) => {
   const { admin } = await authenticate.admin(request);
@@ -220,11 +221,15 @@ export default function NewRule() {
   return (
     <Page title="New rule" backAction={{ content: "Rules", onAction: () => navigate("/app") }}>
       <BlockStack gap="400">
+        <Eyebrow>New rule</Eyebrow>
         <Card>
           <BlockStack gap="200">
-            <Text as="h2" variant="headingMd">
-              Step 1 — What kind of rule?
-            </Text>
+            <InlineStack gap="200" blockAlign="center">
+              <StepBadge n={1} />
+              <Text as="h2" variant="headingMd">
+                What kind of rule?
+              </Text>
+            </InlineStack>
             <RuleTypeCards
               value={ruleType}
               onChange={(next) => {
@@ -247,9 +252,12 @@ export default function NewRule() {
 
         <Card>
           <BlockStack gap="200">
-            <Text as="h2" variant="headingMd">
-              Step 2 — Which products?
-            </Text>
+            <InlineStack gap="200" blockAlign="center">
+              <StepBadge n={2} />
+              <Text as="h2" variant="headingMd">
+                Which products?
+              </Text>
+            </InlineStack>
             <Select
               label="Select by"
               options={[
@@ -296,9 +304,12 @@ export default function NewRule() {
 
         <Card>
           <BlockStack gap="200">
-            <Text as="h2" variant="headingMd">
-              Step 3 — Message shown to the customer
-            </Text>
+            <InlineStack gap="200" blockAlign="center">
+              <StepBadge n={3} />
+              <Text as="h2" variant="headingMd">
+                Message shown to the customer
+              </Text>
+            </InlineStack>
             <TextField
               label="Message"
               value={message}

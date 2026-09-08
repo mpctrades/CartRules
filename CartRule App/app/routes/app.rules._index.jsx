@@ -27,6 +27,7 @@ import { listRules, readRulesCache, setRuleStatus, deleteRule, duplicateRule } f
 import { getTriggerCountsByRule } from "../models/events.server";
 import { RULE_TYPES, TARGET_TYPES, RULE_STATUS } from "../models/ruleConstants";
 import { useActionToast } from "../utils/useActionToast";
+import { Eyebrow } from "../components/brand";
 
 // F4: "Rules list with active / paused status" — one screen to see and
 // control everything, matching brief mockup Screen 1 (and the "Rules" page
@@ -341,6 +342,7 @@ export default function RulesList() {
       primaryAction={{ content: "Create rule", onAction: () => navigate("/app/rules/new") }}
     >
       <BlockStack gap="400">
+        <Eyebrow>Rules</Eyebrow>
         <Text as="p" tone="subdued">
           {rules.length} total rule{rules.length === 1 ? "" : "s"} · {activeCount} active
         </Text>

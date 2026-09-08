@@ -7,6 +7,7 @@ import { getSettings, setSettings } from "../models/settings.server";
 import { syncRulesCache } from "../models/rules.server";
 import { RULE_TYPES } from "../models/ruleConstants";
 import { useActionToast } from "../utils/useActionToast";
+import { Eyebrow } from "../components/brand";
 
 // Settings live in the same shop metafield pattern as everything else in
 // this app (see getSetupFlags/setSetupFlag in rules.server.js) — no new
@@ -65,6 +66,7 @@ export default function Settings() {
   return (
     <Page title="Settings" subtitle="Control how CartRules enforces and messages, store-wide.">
       <BlockStack gap="400">
+        <Eyebrow>Settings</Eyebrow>
         <Card>
           <BlockStack gap="300">
             <Text as="h2" variant="headingMd">

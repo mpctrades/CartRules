@@ -1,7 +1,18 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "@remix-run/react";
-import { Page, Card, BlockStack, InlineGrid, Text, Button, Badge, Tabs } from "@shopify/polaris";
+import { Page, Card, BlockStack, InlineGrid, InlineStack, Text, Button, Badge, Tabs } from "@shopify/polaris";
+import { AlertTriangleIcon, CartDiscountIcon } from "@shopify/polaris-icons";
 import { RULE_TYPES } from "../models/ruleConstants";
+import { Eyebrow, IconChip } from "../components/brand";
+
+// Icon and Badge don't share a tone vocabulary (Icon has "caution", Badge
+// doesn't) — badgeTone is the closest valid <Badge tone> for the same
+// category.
+function templateIcon(category) {
+  return category === "quantity"
+    ? { icon: AlertTriangleIcon, tone: "caution", badgeTone: "warning" }
+    : { icon: CartDiscountIcon, tone: "magic", badgeTone: "magic" };
+}
 
 // Pre-built starting points for the 3-step wizard. Only using the two rule
 // types CartRules actually enforces (no_discount / max_quantity) — no
@@ -80,28 +91,35 @@ export default function Templates() {
   return (
     <Page title="Templates" subtitle="Common rules, ready to adjust and use.">
       <BlockStack gap="400">
+        <Eyebrow>Templates</Eyebrow>
         <Tabs tabs={CATEGORIES.map((c) => ({ id: c.id, content: c.label }))} selected={categoryTab} onSelect={setCategoryTab} />
         <InlineGrid columns={{ xs: 1, sm: 2, md: 2 }} gap="400">
-          {visibleTemplates.map((template) => (
-            <Card key={template.key}>
-              <BlockStack gap="200">
-                <BlockStack gap="100">
-                  <Text as="h2" variant="headingMd">
-                    {template.title}
+          {visibleTemplates.map((template) => {
+            const { icon, tone, badgeTone } = templateIcon(template.category);
+            return (
+              <Card key={template.key}>
+                <BlockStack gap="200">
+                  <InlineStack gap="200" blockAlign="center">
+                    <IconChip icon={icon} tone={tone} />
+                    <BlockStack gap="100">
+                      <Text as="h2" variant="headingMd">
+                        {template.title}
+                      </Text>
+                      <div>
+                        <Badge tone={badgeTone}>{template.badge}</Badge>
+                      </div>
+                    </BlockStack>
+                  </InlineStack>
+                  <Text as="p" tone="subdued">
+                    {template.description}
                   </Text>
                   <div>
-                    <Badge>{template.badge}</Badge>
+                    <Button onClick={() => useTemplate(template)}>Use template</Button>
                   </div>
                 </BlockStack>
-                <Text as="p" tone="subdued">
-                  {template.description}
-                </Text>
-                <div>
-                  <Button onClick={() => useTemplate(template)}>Use template</Button>
-                </div>
-              </BlockStack>
-            </Card>
-          ))}
+              </Card>
+            );
+          })}
         </InlineGrid>
         {visibleTemplates.length === 0 ? (
           <Text as="p" tone="subdued">

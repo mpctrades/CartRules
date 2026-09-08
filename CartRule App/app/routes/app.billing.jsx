@@ -4,6 +4,7 @@ import { Page, Card, BlockStack, InlineGrid, InlineStack, Text, Button, Badge, L
 import { authenticate, BILLING_PLANS, FREE_PLAN_RULE_LIMIT } from "../shopify.server";
 import { countActiveRules } from "../models/rules.server";
 import { getMonthlyEventCount } from "../models/events.server";
+import { Eyebrow, BrandPill, BRAND_ORANGE } from "../components/brand";
 
 export const loader = async ({ request }) => {
   const { admin, session, billing } = await authenticate.admin(request);
@@ -81,82 +82,122 @@ export default function Billing() {
     useLoaderData();
   const submit = useSubmit();
 
+  const usagePct = isFreePlan ? Math.min(100, (activeRules / freeLimit) * 100) : 100;
+
   return (
     <Page title="Plan & billing">
       <BlockStack gap="400">
+        <Eyebrow>Plans &amp; billing</Eyebrow>
         <Card>
-          <InlineGrid columns={{ xs: 1, sm: 3 }} gap="400">
-            <BlockStack gap="050">
-              <Text as="span" tone="subdued">
-                Current plan
-              </Text>
-              <Text as="p" variant="headingLg">
-                {currentPlan}
-              </Text>
-            </BlockStack>
-            <BlockStack gap="050">
-              <Text as="span" tone="subdued">
-                Active rules
-              </Text>
-              <Text as="p" variant="headingLg">
-                {activeRules} / {isFreePlan ? freeLimit : "Unlimited"}
-              </Text>
-            </BlockStack>
-            <BlockStack gap="050">
-              <Text as="span" tone="subdued">
-                Usage this month
-              </Text>
-              <Text as="p" variant="headingLg">
-                {monthlyEvents} rule event{monthlyEvents === 1 ? "" : "s"}
-              </Text>
-            </BlockStack>
-          </InlineGrid>
+          <BlockStack gap="400">
+            <InlineGrid columns={{ xs: 1, sm: 3 }} gap="400">
+              <BlockStack gap="050">
+                <Text as="span" tone="subdued">
+                  Current plan
+                </Text>
+                <Text as="p" variant="headingLg">
+                  {currentPlan}
+                </Text>
+              </BlockStack>
+              <BlockStack gap="050">
+                <Text as="span" tone="subdued">
+                  Active rules
+                </Text>
+                <Text as="p" variant="headingLg">
+                  {activeRules} / {isFreePlan ? freeLimit : "Unlimited"}
+                </Text>
+              </BlockStack>
+              <BlockStack gap="050">
+                <Text as="span" tone="subdued">
+                  Usage this month
+                </Text>
+                <Text as="p" variant="headingLg">
+                  {monthlyEvents} rule event{monthlyEvents === 1 ? "" : "s"}
+                </Text>
+              </BlockStack>
+            </InlineGrid>
+            {isFreePlan ? (
+              <div
+                style={{
+                  height: 6,
+                  borderRadius: 3,
+                  background: "var(--p-color-bg-surface-secondary)",
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    height: "100%",
+                    width: `${usagePct}%`,
+                    borderRadius: 3,
+                    background: `linear-gradient(90deg, ${BRAND_ORANGE}, #ffb280)`,
+                  }}
+                />
+              </div>
+            ) : null}
+          </BlockStack>
         </Card>
 
         <InlineGrid columns={{ xs: 1, md: 3 }} gap="400">
-          {PLAN_COPY.map((plan) => (
-            <Card key={plan.key}>
-              <BlockStack gap="200">
-                <InlineStack align="space-between" blockAlign="center">
-                  <Text as="h2" variant="headingMd">
-                    {plan.key}
-                  </Text>
-                  <InlineStack gap="100">
-                    {plan.key === "Growth" ? <Badge tone="info">Recommended</Badge> : null}
-                    {currentPlan === plan.key ? <Badge tone="success">Current plan</Badge> : null}
-                  </InlineStack>
-                </InlineStack>
-                <Text as="p" variant="headingLg">
-                  {plan.price}
-                </Text>
-                <List>
-                  {plan.features.map((f) => (
-                    <List.Item key={f}>{f}</List.Item>
-                  ))}
-                </List>
-                {plan.key !== "Free" && currentPlan !== plan.key ? (
-                  <Button
-                    variant="primary"
-                    onClick={() => submit({ plan: plan.key }, { method: "post" })}
-                  >
-                    Upgrade to {plan.key}
-                  </Button>
-                ) : null}
-                {plan.key === "Free" && !isFreePlan ? (
-                  <Button
-                    onClick={() =>
-                      submit(
-                        { plan: "Free", subscriptionId: currentSubscriptionId ?? "" },
-                        { method: "post" },
-                      )
-                    }
-                  >
-                    Downgrade to Free
-                  </Button>
-                ) : null}
-              </BlockStack>
-            </Card>
-          ))}
+          {PLAN_COPY.map((plan) => {
+            const featured = plan.key === "Growth";
+            return (
+              <div
+                key={plan.key}
+                style={
+                  featured
+                    ? {
+                        border: `2px solid ${BRAND_ORANGE}`,
+                        borderRadius: "var(--p-border-radius-300)",
+                        boxShadow: "0 4px 14px rgba(255, 90, 31, 0.18)",
+                      }
+                    : undefined
+                }
+              >
+                <Card>
+                  <BlockStack gap="200">
+                    <InlineStack align="space-between" blockAlign="center">
+                      <Text as="h2" variant="headingMd">
+                        {plan.key}
+                      </Text>
+                      <InlineStack gap="100">
+                        {featured ? <BrandPill>Most popular</BrandPill> : null}
+                        {currentPlan === plan.key ? <Badge tone="success">Current plan</Badge> : null}
+                      </InlineStack>
+                    </InlineStack>
+                    <Text as="p" variant="headingLg">
+                      {plan.price}
+                    </Text>
+                    <List>
+                      {plan.features.map((f) => (
+                        <List.Item key={f}>{f}</List.Item>
+                      ))}
+                    </List>
+                    {plan.key !== "Free" && currentPlan !== plan.key ? (
+                      <Button
+                        variant="primary"
+                        onClick={() => submit({ plan: plan.key }, { method: "post" })}
+                      >
+                        Upgrade to {plan.key}
+                      </Button>
+                    ) : null}
+                    {plan.key === "Free" && !isFreePlan ? (
+                      <Button
+                        onClick={() =>
+                          submit(
+                            { plan: "Free", subscriptionId: currentSubscriptionId ?? "" },
+                            { method: "post" },
+                          )
+                        }
+                      >
+                        Downgrade to Free
+                      </Button>
+                    ) : null}
+                  </BlockStack>
+                </Card>
+              </div>
+            );
+          })}
         </InlineGrid>
       </BlockStack>
     </Page>

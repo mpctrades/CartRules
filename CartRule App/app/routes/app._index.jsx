@@ -12,7 +12,6 @@ import {
   Select,
   Box,
   ProgressBar,
-  Icon,
   Badge,
 } from "@shopify/polaris";
 import { ChartLineIcon, CartDiscountIcon, AlertTriangleIcon, ShieldCheckMarkIcon } from "@shopify/polaris-icons";
@@ -23,6 +22,7 @@ import { getKpis, getActivitySeries, getActivityFeed, hasAnyEvent } from "../mod
 import { getSettings } from "../models/settings.server";
 import { RULE_STATUS } from "../models/ruleConstants";
 import { useFlashToast } from "../utils/useFlashToast";
+import { Eyebrow, IconChip, BRAND_ORANGE } from "../components/brand";
 
 const PERIODS = [
   { label: "Last 7 days", value: "7" },
@@ -120,36 +120,13 @@ function kpiHelpText(kpi) {
   };
 }
 
-// Semantic Polaris tone -> its matching theme-aware surface token, for the
-// tinted icon chip on each KPI card (adapts to dark mode automatically,
-// unlike a hardcoded hex would).
-const TONE_CHIP_BG = {
-  info: "var(--p-color-bg-surface-info)",
-  magic: "var(--p-color-bg-surface-magic)",
-  caution: "var(--p-color-bg-surface-caution)",
-  success: "var(--p-color-bg-surface-success)",
-};
-
 function KpiCard({ icon, label, kpi, tone }) {
   const help = kpiHelpText(kpi);
   return (
     <Card>
       <BlockStack gap="150">
         <InlineStack gap="150" blockAlign="center">
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 32,
-              height: 32,
-              borderRadius: 8,
-              background: TONE_CHIP_BG[tone],
-              flexShrink: 0,
-            }}
-          >
-            <Icon source={icon} tone={tone} />
-          </div>
+          <IconChip icon={icon} tone={tone} />
           <Text as="span" tone="subdued">
             {label}
           </Text>
@@ -164,10 +141,6 @@ function KpiCard({ icon, label, kpi, tone }) {
     </Card>
   );
 }
-
-// CartRules' own brand orange (matches the logo/marketing site) — used only
-// for this app's own chart, not merchant-theme-tied UI.
-const BRAND_ORANGE = "#ff5a1f";
 
 function ActivityChart({ series }) {
   const max = Math.max(1, ...series.map((p) => p.count));
@@ -331,6 +304,7 @@ export default function Dashboard() {
       secondaryActions={[{ content: "View rules", onAction: () => navigate("/app/rules") }]}
     >
       <BlockStack gap="400">
+        <Eyebrow>Dashboard</Eyebrow>
         <div
           style={{
             padding: "var(--p-space-400)",
@@ -442,7 +416,7 @@ export default function Dashboard() {
                   return (
                     <Box key={event.id} paddingBlockEnd="200" borderBlockEndWidth="025" borderColor="border">
                       <InlineStack gap="200" wrap={false}>
-                        <Icon source={icon} tone={tone} />
+                        <IconChip icon={icon} tone={tone} size={28} />
                         <BlockStack gap="050">
                           <Text as="span" tone="subdued" variant="bodySm">
                             {relativeTime(event.createdAt)}

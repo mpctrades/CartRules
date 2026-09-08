@@ -17,6 +17,7 @@ import {
 import { ChevronDownIcon, ChevronUpIcon } from "@shopify/polaris-icons";
 import { authenticate, BILLING_PLANS } from "../shopify.server";
 import { getThemeEditorDeepLink } from "../utils/themeEditor";
+import { Eyebrow, StepBadge } from "../components/brand";
 
 const SUPPORT_EMAIL = "team@mpctrades.com";
 
@@ -212,6 +213,7 @@ export default function Help() {
   return (
     <Page title="Help & support" subtitle="Everything you need to get CartRules working properly.">
       <BlockStack gap="400">
+        <Eyebrow>Help &amp; support</Eyebrow>
         <Card>
           <BlockStack gap="300">
             <Text as="h2" variant="headingMd">
@@ -220,9 +222,12 @@ export default function Help() {
             <InlineGrid columns={{ xs: 1, sm: 3 }} gap="300">
               <Box borderWidth="025" borderColor="border" borderRadius="200" padding="300">
                 <BlockStack gap="150">
-                  <Text as="h3" variant="headingSm">
-                    Create your first rule
-                  </Text>
+                  <InlineStack gap="200" blockAlign="center">
+                    <StepBadge n={1} />
+                    <Text as="h3" variant="headingSm">
+                      Create your first rule
+                    </Text>
+                  </InlineStack>
                   <Text as="p" tone="subdued">
                     Learn how to create and activate a CartRules rule.
                   </Text>
@@ -231,9 +236,12 @@ export default function Help() {
               </Box>
               <Box borderWidth="025" borderColor="border" borderRadius="200" padding="300">
                 <BlockStack gap="150">
-                  <Text as="h3" variant="headingSm">
-                    Add storefront messages
-                  </Text>
+                  <InlineStack gap="200" blockAlign="center">
+                    <StepBadge n={2} />
+                    <Text as="h3" variant="headingSm">
+                      Add storefront messages
+                    </Text>
+                  </InlineStack>
                   <Text as="p" tone="subdued">
                     Show customers rule information on product and cart pages.
                   </Text>
@@ -244,9 +252,12 @@ export default function Help() {
               </Box>
               <Box borderWidth="025" borderColor="border" borderRadius="200" padding="300">
                 <BlockStack gap="150">
-                  <Text as="h3" variant="headingSm">
-                    Test your rules
-                  </Text>
+                  <InlineStack gap="200" blockAlign="center">
+                    <StepBadge n={3} />
+                    <Text as="h3" variant="headingSm">
+                      Test your rules
+                    </Text>
+                  </InlineStack>
                   <Text as="p" tone="subdued">
                     Make sure a rule works before customers use it.
                   </Text>

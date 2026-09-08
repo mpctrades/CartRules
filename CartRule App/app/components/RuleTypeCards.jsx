@@ -1,6 +1,7 @@
-import { BlockStack, Box, Icon, InlineGrid, InlineStack, Text } from "@shopify/polaris";
+import { BlockStack, Icon, InlineGrid, InlineStack, Text } from "@shopify/polaris";
 import { CheckCircleIcon } from "@shopify/polaris-icons";
 import { RULE_TYPES } from "../models/ruleConstants";
+import { BRAND_ORANGE, BRAND_ORANGE_SOFT } from "./brand";
 
 // Selectable-card version of the rule-type picker, used by both the create
 // (app.rules.new.jsx) and edit (app.rules.$id.jsx) rule screens instead of a
@@ -24,17 +25,20 @@ export default function RuleTypeCards({ value, onChange }) {
       {OPTIONS.map((option) => {
         const selected = value === option.value;
         return (
-          <Box
+          <button
             key={option.value}
-            as="button"
             type="button"
             onClick={() => onChange(option.value)}
-            background={selected ? "bg-surface-selected" : "bg-surface"}
-            borderWidth="025"
-            borderColor={selected ? "border-emphasis" : "border"}
-            borderRadius="200"
-            padding="300"
-            width="100%"
+            style={{
+              width: "100%",
+              textAlign: "left",
+              font: "inherit",
+              cursor: "pointer",
+              background: selected ? BRAND_ORANGE_SOFT : "var(--p-color-bg-surface)",
+              border: `1px solid ${selected ? BRAND_ORANGE : "var(--p-color-border)"}`,
+              borderRadius: "var(--p-border-radius-200)",
+              padding: "var(--p-space-300)",
+            }}
           >
             <BlockStack gap="100">
               <InlineStack align="space-between" blockAlign="center" wrap={false}>
@@ -47,7 +51,7 @@ export default function RuleTypeCards({ value, onChange }) {
                 {option.description}
               </Text>
             </BlockStack>
-          </Box>
+          </button>
         );
       })}
     </InlineGrid>
