@@ -120,13 +120,36 @@ function kpiHelpText(kpi) {
   };
 }
 
+// Semantic Polaris tone -> its matching theme-aware surface token, for the
+// tinted icon chip on each KPI card (adapts to dark mode automatically,
+// unlike a hardcoded hex would).
+const TONE_CHIP_BG = {
+  info: "var(--p-color-bg-surface-info)",
+  magic: "var(--p-color-bg-surface-magic)",
+  caution: "var(--p-color-bg-surface-caution)",
+  success: "var(--p-color-bg-surface-success)",
+};
+
 function KpiCard({ icon, label, kpi, tone }) {
   const help = kpiHelpText(kpi);
   return (
     <Card>
       <BlockStack gap="150">
         <InlineStack gap="150" blockAlign="center">
-          <Icon source={icon} tone={tone} />
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              background: TONE_CHIP_BG[tone],
+              flexShrink: 0,
+            }}
+          >
+            <Icon source={icon} tone={tone} />
+          </div>
           <Text as="span" tone="subdued">
             {label}
           </Text>
@@ -142,6 +165,10 @@ function KpiCard({ icon, label, kpi, tone }) {
   );
 }
 
+// CartRules' own brand orange (matches the logo/marketing site) — used only
+// for this app's own chart, not merchant-theme-tied UI.
+const BRAND_ORANGE = "#ff5a1f";
+
 function ActivityChart({ series }) {
   const max = Math.max(1, ...series.map((p) => p.count));
   const width = 100 / series.length;
@@ -154,7 +181,9 @@ function ActivityChart({ series }) {
           style={{
             width: `${width}%`,
             height: `${Math.max(4, (p.count / max) * 100)}%`,
-            background: p.count > 0 ? "var(--p-color-bg-fill-brand, #303030)" : "var(--p-color-bg-surface-secondary, #f1f1f1)",
+            background: p.count > 0
+              ? `linear-gradient(180deg, ${BRAND_ORANGE}, #ffb280)`
+              : "var(--p-color-bg-surface-secondary, #f1f1f1)",
             borderRadius: 2,
           }}
         />
@@ -302,9 +331,24 @@ export default function Dashboard() {
       secondaryActions={[{ content: "View rules", onAction: () => navigate("/app/rules") }]}
     >
       <BlockStack gap="400">
-        <Box>
+        <div
+          style={{
+            padding: "var(--p-space-400)",
+            borderRadius: "var(--p-border-radius-300)",
+            background: "linear-gradient(135deg, #fff4ec 0%, #ffe4d1 100%)",
+          }}
+        >
           <InlineStack gap="300" blockAlign="center">
-            <img src="/logo.png" alt="CartRules" width={48} height={48} style={{ objectFit: "contain", flexShrink: 0 }} />
+            <div
+              style={{
+                borderRadius: 12,
+                overflow: "hidden",
+                flexShrink: 0,
+                boxShadow: "0 4px 10px rgba(255, 90, 31, 0.25)",
+              }}
+            >
+              <img src="/logo.png" alt="CartRules" width={56} height={56} style={{ objectFit: "contain", display: "block" }} />
+            </div>
             <BlockStack gap="100">
               <InlineStack gap="200" blockAlign="center">
                 <Text as="p" variant="headingMd">
@@ -321,7 +365,7 @@ export default function Dashboard() {
               ? "Create your first rule to get started."
               : `${activeCount} active rule${activeCount === 1 ? "" : "s"} · ${pausedCount} paused`}
           </Text>
-        </Box>
+        </div>
 
         <InlineGrid columns={{ xs: 1, sm: 2, md: 4 }} gap="400">
           <KpiCard icon={ChartLineIcon} label="Rule triggers" kpi={kpis.triggers} tone="info" />
