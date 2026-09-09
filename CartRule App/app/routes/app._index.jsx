@@ -13,6 +13,7 @@ import {
   Box,
   ProgressBar,
   Badge,
+  List,
 } from "@shopify/polaris";
 import { ChartLineIcon, CartDiscountIcon, AlertTriangleIcon, ShieldCheckMarkIcon } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
@@ -257,12 +258,23 @@ function SetupChecklist({ checklist, shop, navigate, submit }) {
           })}
           {!checklist.addedStorefrontMessages ? (
             <Box paddingInlineStart="600">
-              <Button
-                variant="plain"
-                onClick={() => submit({ intent: "markStorefrontMessagesAdded" }, { method: "post" })}
-              >
-                I've added the storefront message block
-              </Button>
+              <BlockStack gap="200">
+                <List type="number">
+                  <List.Item>
+                    Click "Open theme editor" above — it opens with the CartRules product-page block already added.
+                  </List.Item>
+                  <List.Item>Click Save (top right) to publish it live.</List.Item>
+                  <List.Item>
+                    Optional: on your cart page template, click Add block → Apps → CartRules Cart quantity guard.
+                  </List.Item>
+                </List>
+                <Button
+                  variant="plain"
+                  onClick={() => submit({ intent: "markStorefrontMessagesAdded" }, { method: "post" })}
+                >
+                  I've added the storefront message block
+                </Button>
+              </BlockStack>
             </Box>
           ) : null}
         </BlockStack>
