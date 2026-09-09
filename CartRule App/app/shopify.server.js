@@ -36,16 +36,31 @@ const shopify = shopifyApp({
   authPathPrefix: "/auth",
   sessionStorage: new PrismaSessionStorage(prisma),
   distribution: AppDistribution.AppStore,
+  // Each plan must be a one-time plan OR a subscription plan with `lineItems`
+  // — the installed @shopify/shopify-app-remix rejects a flat
+  // {amount, currencyCode, interval} shape with "Invalid billing
+  // configuration ... Must be either a one-time plan or a subscription plan
+  // with line items" (thrown by billing.request() before it ever reaches
+  // Shopify's API). This was firing on every "Upgrade" click in production —
+  // the App Store review rejection (500 on the billing page) traces to this.
   billing: {
     [BILLING_PLANS.GROWTH]: {
-      amount: 4.99,
-      currencyCode: "USD",
-      interval: BillingInterval.Every30Days,
+      lineItems: [
+        {
+          amount: 4.99,
+          currencyCode: "USD",
+          interval: BillingInterval.Every30Days,
+        },
+      ],
     },
     [BILLING_PLANS.PRO]: {
-      amount: 9.99,
-      currencyCode: "USD",
-      interval: BillingInterval.Every30Days,
+      lineItems: [
+        {
+          amount: 9.99,
+          currencyCode: "USD",
+          interval: BillingInterval.Every30Days,
+        },
+      ],
     },
   },
   hooks: {

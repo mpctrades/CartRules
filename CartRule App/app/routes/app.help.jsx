@@ -17,6 +17,7 @@ import {
 } from "@shopify/polaris";
 import { ChevronDownIcon, ChevronUpIcon } from "@shopify/polaris-icons";
 import { authenticate, BILLING_PLANS } from "../shopify.server";
+import { isDevelopmentStore } from "../models/shop.server";
 import { getThemeEditorDeepLink } from "../utils/themeEditor";
 import { Eyebrow, StepBadge } from "../components/brand";
 
@@ -26,10 +27,10 @@ const SUPPORT_EMAIL = "team@mpctrades.com";
 // feature-request submissions build a mailto: link instead of a fake
 // "ticket submitted" confirmation, so nothing is silently lost.
 export const loader = async ({ request }) => {
-  const { session, billing } = await authenticate.admin(request);
+  const { admin, session, billing } = await authenticate.admin(request);
   const { hasActivePayment, appSubscriptions } = await billing.check({
     plans: Object.values(BILLING_PLANS),
-    isTest: process.env.NODE_ENV !== "production",
+    isTest: await isDevelopmentStore(admin, session.shop),
   });
   return json({
     shop: session.shop,

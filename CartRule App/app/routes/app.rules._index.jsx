@@ -25,6 +25,7 @@ import { MenuHorizontalIcon, CheckCircleIcon, AlertTriangleIcon } from "@shopify
 import { authenticate, BILLING_PLANS, FREE_PLAN_RULE_LIMIT } from "../shopify.server";
 import { listRules, readRulesCache, setRuleStatus, deleteRule, duplicateRule } from "../models/rules.server";
 import { getTriggerCountsByRule } from "../models/events.server";
+import { isDevelopmentStore } from "../models/shop.server";
 import { RULE_TYPES, TARGET_TYPES, RULE_STATUS } from "../models/ruleConstants";
 import { useActionToast } from "../utils/useActionToast";
 import { Eyebrow } from "../components/brand";
@@ -35,12 +36,13 @@ import { Eyebrow } from "../components/brand";
 // focus on KPIs/activity — see app._index.jsx.
 export const loader = async ({ request }) => {
   const { admin, session, billing } = await authenticate.admin(request);
-  const [rules, cache, triggerCounts, { hasActivePayment }] = await Promise.all([
+  const [rules, cache, triggerCounts, isTest] = await Promise.all([
     listRules(admin),
     readRulesCache(admin),
     getTriggerCountsByRule(session.shop),
-    billing.check({ plans: Object.values(BILLING_PLANS), isTest: process.env.NODE_ENV !== "production" }),
+    isDevelopmentStore(admin, session.shop),
   ]);
+  const { hasActivePayment } = await billing.check({ plans: Object.values(BILLING_PLANS), isTest });
   const productCountByRuleId = new Map(cache.rules.map((r) => [r.id, r.productIds?.length ?? 0]));
   const rulesWithDetail = rules.map((r) => ({
     ...r,

@@ -1,17 +1,19 @@
 import { json } from "@remix-run/node";
-import { useLoaderData, useSubmit } from "@remix-run/react";
-import { Page, Card, BlockStack, InlineGrid, InlineStack, Text, Button, Badge, List } from "@shopify/polaris";
+import { useActionData, useLoaderData, useSubmit } from "@remix-run/react";
+import { Page, Card, BlockStack, InlineGrid, InlineStack, Text, Button, Badge, List, Banner } from "@shopify/polaris";
 import { authenticate, BILLING_PLANS, FREE_PLAN_RULE_LIMIT } from "../shopify.server";
 import { countActiveRules } from "../models/rules.server";
 import { getMonthlyEventCount } from "../models/events.server";
+import { isDevelopmentStore } from "../models/shop.server";
 import { Eyebrow, BrandPill, BRAND_ORANGE } from "../components/brand";
 
 export const loader = async ({ request }) => {
   const { admin, session, billing } = await authenticate.admin(request);
+  const isTest = await isDevelopmentStore(admin, session.shop);
   // `check` doesn't throw when unsubscribed — it just reports isTest/appSubscriptions.
   const { hasActivePayment, appSubscriptions } = await billing.check({
     plans: Object.values(BILLING_PLANS),
-    isTest: process.env.NODE_ENV !== "production",
+    isTest,
   });
   const currentPlan = hasActivePayment ? appSubscriptions[0]?.name : "Free";
   const currentSubscriptionId = hasActivePayment ? appSubscriptions[0]?.id : null;
@@ -30,10 +32,10 @@ export const loader = async ({ request }) => {
 };
 
 export const action = async ({ request }) => {
-  const { billing } = await authenticate.admin(request);
+  const { admin, session, billing } = await authenticate.admin(request);
   const formData = await request.formData();
   const plan = formData.get("plan");
-  const isTest = process.env.NODE_ENV !== "production";
+  const isTest = await isDevelopmentStore(admin, session.shop);
 
   // Downgrading to Free means cancelling the active subscription outright —
   // Shopify billing has no $0 plan, so there's nothing to "request" here.
@@ -45,12 +47,31 @@ export const action = async ({ request }) => {
     return json({ ok: true });
   }
 
-  return billing.request({
-    plan,
-    isTest,
-    // Shopify redirects the merchant to approve the charge, then back here.
-    returnUrl: `${process.env.SHOPIFY_APP_URL}/app/billing`,
-  });
+  try {
+    // billing.request() never returns on success — it always throws: either
+    // the out-of-iframe redirect to Shopify's charge confirmation screen, or
+    // (for token-exchange requests) a 401 Response that App Bridge
+    // intercepts to do that redirect itself. A thrown Response here is
+    // expected control flow; only a genuine failure (e.g. Shopify rejecting
+    // the charge) reaches the catch block below as a real Error.
+    return await billing.request({
+      plan,
+      isTest,
+      // Shopify redirects the merchant to approve the charge, then back here.
+      returnUrl: `${process.env.SHOPIFY_APP_URL}/app/billing`,
+    });
+  } catch (error) {
+    if (error instanceof Response) throw error;
+    console.error("Billing request failed", { shop: session.shop, plan, isTest, error });
+    return json(
+      {
+        ok: false,
+        billingError:
+          "We couldn't start that upgrade. Please try again in a moment — if it keeps happening, contact support.",
+      },
+      { status: 200 },
+    );
+  }
 };
 
 // Plan names/prices duplicated as literals (not imported from shopify.server)
@@ -80,6 +101,7 @@ const PLAN_COPY = [
 export default function Billing() {
   const { currentPlan, currentSubscriptionId, activeRules, freeLimit, isFreePlan, monthlyEvents } =
     useLoaderData();
+  const actionData = useActionData();
   const submit = useSubmit();
 
   const usagePct = isFreePlan ? Math.min(100, (activeRules / freeLimit) * 100) : 100;
@@ -88,6 +110,7 @@ export default function Billing() {
     <Page title="Plan & billing">
       <BlockStack gap="400">
         <Eyebrow>Plans &amp; billing</Eyebrow>
+        {actionData?.billingError ? <Banner tone="critical">{actionData.billingError}</Banner> : null}
         <Card>
           <BlockStack gap="400">
             <InlineGrid columns={{ xs: 1, sm: 3 }} gap="400">
