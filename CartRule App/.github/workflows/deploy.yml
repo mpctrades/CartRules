@@ -1,0 +1,76 @@
+# Deploys CartRules' web backend to the VPS on every push to main.
+#
+# One-time setup required (Repo → Settings → Secrets and variables → Actions):
+#   Secrets:
+#     DEPLOY_HOST      - server hostname/IP (e.g. dev.cartrule.mpctrades.com)
+#     DEPLOY_USER      - SSH user (e.g. devteam02)
+#     DEPLOY_SSH_KEY   - private key for a deploy-only key added to the
+#                        server's ~/.ssh/authorized_keys (do NOT reuse a
+#                        personal key)
+#     DEPLOY_PORT      - optional, defaults to 22
+#   Variables (optional overrides; sensible defaults are baked in below):
+#     CARTRULES_DEPLOY_PATH - absolute path to the git checkout on the
+#                              server (default: $HOME/apps/cartrules)
+#     CARTRULES_PM2_NAME    - pm2 process name (default: cartrules)
+#
+# The server checkout must already have its own untracked .env with the
+# real secrets (SHOPIFY_API_KEY, SHOPIFY_API_SECRET, DATABASE_URL, ...) —
+# this workflow only pulls code, runs migrations, builds, and restarts the
+# existing pm2 process (starting it if it isn't running yet).
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-cartrules
+  cancel-in-progress: false
+
+jobs:
+  build-and-test:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+      - run: npm ci
+      - run: npm run build
+
+  deploy:
+    name: Deploy to server
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Pull, migrate, build, and restart over SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          script: |
+            set -euo pipefail
+            cd "${{ vars.CARTRULES_DEPLOY_PATH || '$HOME/apps/cartrules' }}"
+
+            git fetch origin main
+            git reset --hard origin/main
+
+            npm ci
+            npm run setup   # prisma generate && prisma migrate deploy
+            npm run build
+
+            APP_NAME="${{ vars.CARTRULES_PM2_NAME || 'cartrules' }}"
+            if pm2 describe "$APP_NAME" > /dev/null 2>&1; then
+              pm2 restart "$APP_NAME" --update-env
+            else
+              pm2 start npm --name "$APP_NAME" -- run start
+            fi
+            pm2 save
+
+            echo "Deployed $(git rev-parse --short HEAD)"
