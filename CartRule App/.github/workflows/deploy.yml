@@ -1,22 +1,41 @@
-# Deploys CartRules' web backend to the VPS on every push to main.
+# Deploys CartRules on every push to main.
+#
+# Two independent things get deployed here, in parallel, after the build
+# gate passes:
+#   1. shopify-deploy: `shopify app deploy` — pushes shopify.app.toml
+#      (scopes, webhooks, extensions) to Shopify and syncs it to shops that
+#      already have the app installed, not just new installs. This step was
+#      previously a manual, easy-to-forget local command — Shopify's own
+#      webhook-subscription records for already-installed shops don't
+#      update just because the web server redeploys with new code.
+#   2. server-deploy: pulls latest code onto the VPS, migrates the DB,
+#      rebuilds, and restarts the systemd service actually serving traffic.
 #
 # One-time setup required (Repo → Settings → Secrets and variables → Actions):
 #   Secrets:
-#     DEPLOY_HOST      - server hostname/IP (e.g. dev.cartrule.mpctrades.com)
-#     DEPLOY_USER      - SSH user (e.g. devteam02)
-#     DEPLOY_SSH_KEY   - private key for a deploy-only key added to the
-#                        server's ~/.ssh/authorized_keys (do NOT reuse a
-#                        personal key)
-#     DEPLOY_PORT      - optional, defaults to 22
-#   Variables (optional overrides; sensible defaults are baked in below):
+#     DEPLOY_HOST            - server hostname/IP (e.g. dev.cartrule.mpctrades.com)
+#     DEPLOY_USER            - SSH user (e.g. devteam02)
+#     DEPLOY_SSH_KEY         - private key for a deploy-only key added to the
+#                              server's ~/.ssh/authorized_keys (do NOT reuse a
+#                              personal key)
+#     DEPLOY_PORT            - optional, defaults to 22
+#     SHOPIFY_CLI_PARTNERS_TOKEN - a Partners CLI token for this app, so
+#                              `shopify app deploy` can run non-interactively.
+#                              See `shopify app deploy --help` / Shopify's
+#                              current CI/CD docs for how to mint one for
+#                              this Partner org — the exact self-service flow
+#                              has moved around across CLI versions.
+#   Variables (optional overrides; defaults below match the real server as
+#   confirmed live on 2026-09-10):
 #     CARTRULES_DEPLOY_PATH - absolute path to the git checkout on the
-#                              server (default: $HOME/apps/cartrules)
-#     CARTRULES_PM2_NAME    - pm2 process name (default: cartrules)
+#                              server, note the space in the directory name
+#                              (default: /home/devteam02/apps/cartrules-dev/CartRule App)
+#     CARTRULES_SERVICE     - systemd unit name (default: cartrules-dev.service)
 #
 # The server checkout must already have its own untracked .env with the
 # real secrets (SHOPIFY_API_KEY, SHOPIFY_API_SECRET, DATABASE_URL, ...) —
 # this workflow only pulls code, runs migrations, builds, and restarts the
-# existing pm2 process (starting it if it isn't running yet).
+# service (it does not create the systemd unit).
 name: Deploy
 
 on:
@@ -41,8 +60,25 @@ jobs:
       - run: npm ci
       - run: npm run build
 
-  deploy:
-    name: Deploy to server
+  shopify-deploy:
+    name: Sync app config to Shopify
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+      - run: npm ci
+      - name: shopify app deploy
+        env:
+          SHOPIFY_CLI_PARTNERS_TOKEN: ${{ secrets.SHOPIFY_CLI_PARTNERS_TOKEN }}
+        run: npx shopify app deploy --force --no-color
+
+  server-deploy:
+    name: Deploy web server to VPS
     needs: build-and-test
     runs-on: ubuntu-latest
     environment: production
@@ -56,7 +92,7 @@ jobs:
           port: ${{ secrets.DEPLOY_PORT || 22 }}
           script: |
             set -euo pipefail
-            cd "${{ vars.CARTRULES_DEPLOY_PATH || '$HOME/apps/cartrules' }}"
+            cd "${{ vars.CARTRULES_DEPLOY_PATH || '/home/devteam02/apps/cartrules-dev/CartRule App' }}"
 
             git fetch origin main
             git reset --hard origin/main
@@ -65,12 +101,6 @@ jobs:
             npm run setup   # prisma generate && prisma migrate deploy
             npm run build
 
-            APP_NAME="${{ vars.CARTRULES_PM2_NAME || 'cartrules' }}"
-            if pm2 describe "$APP_NAME" > /dev/null 2>&1; then
-              pm2 restart "$APP_NAME" --update-env
-            else
-              pm2 start npm --name "$APP_NAME" -- run start
-            fi
-            pm2 save
+            sudo systemctl restart "${{ vars.CARTRULES_SERVICE || 'cartrules-dev.service' }}"
 
             echo "Deployed $(git rev-parse --short HEAD)"
