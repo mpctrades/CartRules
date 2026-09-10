@@ -19,12 +19,16 @@
 #                              server's ~/.ssh/authorized_keys (do NOT reuse a
 #                              personal key)
 #     DEPLOY_PORT            - optional, defaults to 22
-#     SHOPIFY_CLI_PARTNERS_TOKEN - a Partners CLI token for this app, so
-#                              `shopify app deploy` can run non-interactively.
-#                              See `shopify app deploy --help` / Shopify's
-#                              current CI/CD docs for how to mint one for
-#                              this Partner org — the exact self-service flow
-#                              has moved around across CLI versions.
+#     SHOPIFY_APP_AUTOMATION_TOKEN - an app-scoped token so `shopify app
+#                              deploy` can run non-interactively. Confirmed
+#                              from the installed @shopify/cli's own source
+#                              (v3.94.3): it's checked before the older,
+#                              account-wide SHOPIFY_CLI_PARTNERS_TOKEN, which
+#                              also still works as a fallback if that's what
+#                              you have. Generate it from the Partner
+#                              Dashboard → this app → look for an
+#                              automation/CI token option (exact menu wording
+#                              may vary by dashboard version).
 #   Variables (optional overrides; defaults below match the real server as
 #   confirmed live on 2026-09-10):
 #     CARTRULES_DEPLOY_PATH - absolute path to the git checkout on the
@@ -74,8 +78,9 @@ jobs:
       - run: npm ci
       - name: shopify app deploy
         env:
+          SHOPIFY_APP_AUTOMATION_TOKEN: ${{ secrets.SHOPIFY_APP_AUTOMATION_TOKEN }}
           SHOPIFY_CLI_PARTNERS_TOKEN: ${{ secrets.SHOPIFY_CLI_PARTNERS_TOKEN }}
-        run: npx shopify app deploy --force --no-color
+        run: npx shopify app deploy --allow-updates --no-color
 
   server-deploy:
     name: Deploy web server to VPS
