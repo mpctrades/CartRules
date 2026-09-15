@@ -1,5 +1,15 @@
 # Deploys CartRules on every push to main.
 #
+# This file MUST live at the repository root's .github/workflows/ — GitHub
+# Actions only discovers workflows there. This repo is a monorepo (top-level
+# "CartRule App" and "CartRule Web" folders); the app itself lives in
+# "CartRule App", so every step below runs with that as its working
+# directory. This file previously lived at
+# "CartRule App/.github/workflows/deploy.yml" (nested a level too deep),
+# which meant GitHub Actions never once discovered or ran it — every push
+# to main silently deployed nothing, despite this workflow existing in git
+# history since 2026-09-10. Moved here to actually take effect.
+#
 # Two independent things get deployed here, in parallel, after the build
 # gate passes:
 #   1. shopify-deploy: `shopify app deploy` — pushes shopify.app.toml
@@ -45,6 +55,9 @@ name: Deploy
 on:
   push:
     branches: [main]
+    paths:
+      - "CartRule App/**"
+      - ".github/workflows/deploy.yml"
   workflow_dispatch: {}
 
 concurrency:
@@ -55,12 +68,16 @@ jobs:
   build-and-test:
     name: Build
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: "CartRule App"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: "npm"
+          cache-dependency-path: "CartRule App/package-lock.json"
       - run: npm ci
       - run: npm run build
 
@@ -69,12 +86,16 @@ jobs:
     needs: build-and-test
     runs-on: ubuntu-latest
     environment: production
+    defaults:
+      run:
+        working-directory: "CartRule App"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: "npm"
+          cache-dependency-path: "CartRule App/package-lock.json"
       - run: npm ci
       - name: shopify app deploy
         env:
