@@ -208,6 +208,41 @@ function FeatureRequestCard({ shop }) {
   );
 }
 
+// Illustrative diagram (not a real screenshot) showing roughly where each
+// app block lands, since we can't ship a screenshot of a merchant's own
+// theme. Shopify's theme app extension UX guidance recommends pairing
+// written onboarding steps with a visual — this is the visual half.
+function ThemeBlockDiagram() {
+  return (
+    <Box paddingBlockStart="150">
+      <InlineStack gap="300" wrap={false}>
+        <svg width="140" height="110" viewBox="0 0 140 110" role="img" aria-label="Product page with the CartRules notice block below the Add to cart button">
+          <rect x="1" y="1" width="138" height="108" rx="6" fill="var(--p-color-bg-surface-secondary, #f6f6f7)" stroke="var(--p-color-border, #d3d3d3)" />
+          <rect x="10" y="10" width="55" height="55" rx="4" fill="var(--p-color-bg-surface-tertiary, #e3e3e3)" />
+          <rect x="72" y="10" width="58" height="10" rx="2" fill="var(--p-color-bg-surface-tertiary, #e3e3e3)" />
+          <rect x="72" y="26" width="40" height="8" rx="2" fill="var(--p-color-bg-surface-tertiary, #e3e3e3)" />
+          <rect x="72" y="40" width="58" height="16" rx="3" fill="#ffb280" />
+          <rect x="10" y="72" width="120" height="18" rx="3" fill="#ff5a1f" fillOpacity="0.15" stroke="#ff5a1f" strokeWidth="1.5" />
+          <text x="70" y="84" textAnchor="middle" fontSize="7" fill="#ff5a1f" fontFamily="sans-serif">
+            CartRules notice
+          </text>
+        </svg>
+        <svg width="140" height="110" viewBox="0 0 140 110" role="img" aria-label="Cart page with the CartRules quantity guard adjusting a quantity input">
+          <rect x="1" y="1" width="138" height="108" rx="6" fill="var(--p-color-bg-surface-secondary, #f6f6f7)" stroke="var(--p-color-border, #d3d3d3)" />
+          <rect x="10" y="10" width="120" height="10" rx="2" fill="var(--p-color-bg-surface-tertiary, #e3e3e3)" />
+          <rect x="10" y="28" width="30" height="30" rx="3" fill="var(--p-color-bg-surface-tertiary, #e3e3e3)" />
+          <rect x="46" y="28" width="50" height="8" rx="2" fill="var(--p-color-bg-surface-tertiary, #e3e3e3)" />
+          <rect x="46" y="42" width="28" height="14" rx="3" fill="#ffb280" />
+          <rect x="10" y="72" width="120" height="18" rx="3" fill="#ff5a1f" fillOpacity="0.15" stroke="#ff5a1f" strokeWidth="1.5" />
+          <text x="70" y="84" textAnchor="middle" fontSize="7" fill="#ff5a1f" fontFamily="sans-serif">
+            CartRules quantity guard
+          </text>
+        </svg>
+      </InlineStack>
+    </Box>
+  );
+}
+
 export default function Help() {
   const { shop, currentPlan } = useLoaderData();
   const navigate = useNavigate();
@@ -255,10 +290,36 @@ export default function Help() {
                     <List.Item>
                       Optional: on your cart page template, click Add block → Apps → CartRules Cart quantity guard.
                     </List.Item>
+                    <List.Item>
+                      To reorder either block, drag it up or down within the section in the theme editor. To remove
+                      one, select it and click the trash icon — this doesn't affect your rules, only the storefront
+                      message.
+                    </List.Item>
                   </List>
                   <Button onClick={() => window.open(getThemeEditorDeepLink(shop), "_blank")}>
                     Open theme editor
                   </Button>
+                  <ThemeBlockDiagram />
+                  <Box paddingBlockStart="100">
+                    <Text as="p" tone="subdued">
+                      <Text as="span" fontWeight="medium">
+                        Supported templates:
+                      </Text>{" "}
+                      Product (max-quantity notice) and Cart (quantity guard). Neither block has settings to
+                      configure — they automatically stay in sync with your active rules.
+                    </Text>
+                  </Box>
+                  <Box>
+                    <Text as="p" tone="subdued">
+                      <Text as="span" fontWeight="medium">
+                        Requires an Online Store 2.0 theme
+                      </Text>{" "}
+                      (one with JSON templates) — most current free and paid Shopify themes qualify. If "Add block →
+                      Apps" doesn't appear in your theme editor, your published theme is a vintage theme; switch to
+                      an Online Store 2.0 theme to use storefront messages (checkout enforcement still works either
+                      way).
+                    </Text>
+                  </Box>
                 </BlockStack>
               </Box>
               <Box borderWidth="025" borderColor="border" borderRadius="200" padding="300">
