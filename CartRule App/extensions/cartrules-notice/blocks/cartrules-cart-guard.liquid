@@ -14,6 +14,20 @@
 </script>
 <script src="{{ 'cartrules-notice.js' | asset_url }}" defer></script>
 
+{% comment %}
+  This block is intentionally invisible on the live storefront (it only
+  clamps quantity inputs client-side). But that means it renders zero
+  markup, so in the theme editor merchants have no visual confirmation the
+  block was added at all — surfaced by the App Store review as "widget not
+  visible ... in Theme Editor". Show a small placeholder in the editor only.
+{% endcomment %}
+{% if request.design_mode %}
+  <div class="cartrules-cart-guard cartrules-cart-guard--placeholder">
+    CartRules cart quantity guard (invisible on the live storefront — enforces
+    maximum-quantity rules on cart quantity inputs).
+  </div>
+{% endif %}
+
 {% schema %}
 {
   "name": "Cart quantity guard",

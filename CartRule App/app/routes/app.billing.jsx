@@ -54,11 +54,21 @@ export const action = async ({ request }) => {
     // intercepts to do that redirect itself. A thrown Response here is
     // expected control flow; only a genuine failure (e.g. Shopify rejecting
     // the charge) reaches the catch block below as a real Error.
+    //
+    // returnUrl must stay inside the embedded admin context
+    // (admin.shopify.com/store/<shop>/apps/<api-key>/...), NOT the bare
+    // app domain — this is exactly what @shopify/shopify-api's
+    // billing.request builds by default when no returnUrl is passed (see
+    // buildEmbeddedAppUrl). A bare app URL here was the App Store review
+    // rejection: after approving the charge, Shopify did a top-level
+    // redirect straight to the raw app domain with no shop/host context,
+    // so the app couldn't identify the shop and fell back to the login
+    // page instead of showing the updated plan.
+    const cleanShopName = session.shop.replace(".myshopify.com", "");
     return await billing.request({
       plan,
       isTest,
-      // Shopify redirects the merchant to approve the charge, then back here.
-      returnUrl: `${process.env.SHOPIFY_APP_URL}/app/billing`,
+      returnUrl: `https://admin.shopify.com/store/${cleanShopName}/apps/${process.env.SHOPIFY_API_KEY}/app/billing`,
     });
   } catch (error) {
     if (error instanceof Response) throw error;

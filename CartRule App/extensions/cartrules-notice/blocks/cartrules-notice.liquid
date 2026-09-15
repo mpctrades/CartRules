@@ -8,6 +8,7 @@
 {% endcomment %}
 
 {% assign cache = shop.metafields.cartrules.rules_cache %}
+{% assign rendered_notice = false %}
 {% if cache and cache.enabled != false and cache.productNoticesEnabled != false %}
   {% assign product_gid_suffix = product.id | append: '' %}
   {% for rule in cache.rules %}
@@ -23,6 +24,7 @@
       {% endif %}
 
       {% if matches %}
+        {% assign rendered_notice = true %}
         <div class="cartrules-notice" data-cartrules-max="{{ rule.maxQuantity }}">
           {% if rule.message != blank %}
             {{ rule.message }}
@@ -33,6 +35,26 @@
       {% endif %}
     {% endif %}
   {% endfor %}
+{% endif %}
+
+{% comment %}
+  Theme editor only: a real, blank storefront must render nothing for a
+  product with no matching rule (that's the correct/expected behavior, not
+  a bug). But in the editor preview merchants need to SEE the block exists
+  and is configured correctly even before any rule targets the product
+  they're previewing — otherwise it looks broken/missing, which is what
+  triggered the App Store review's "widget not visible" rejection.
+{% endcomment %}
+{% if request.design_mode and rendered_notice == false %}
+  <div class="cartrules-notice cartrules-notice--placeholder">
+    {% if cache %}
+      No maximum-quantity rule applies to this product right now. Add or edit
+      a rule in the CartRules app to see the live notice here.
+    {% else %}
+      CartRules is installed but hasn't synced any rules yet. Create a rule
+      in the CartRules app to activate this notice.
+    {% endif %}
+  </div>
 {% endif %}
 
 {% schema %}
