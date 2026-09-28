@@ -65,7 +65,20 @@ export const loader = async ({ request }) => {
   });
 };
 
-export const action = async ({ request }) => {
+// Any Admin API failure in toggle/delete/duplicate/test becomes an error
+// toast instead of the route's error page (App Store requirement 2.1.1).
+// Thrown Responses (auth redirects, App Bridge re-auth) pass through.
+export const action = async (args) => {
+  try {
+    return await handleRuleAction(args);
+  } catch (error) {
+    if (error instanceof Response) throw error;
+    console.error("Rules action failed", error);
+    return json({ ok: false, toast: "Something went wrong. Please try again.", toastError: true });
+  }
+};
+
+async function handleRuleAction({ request }) {
   const { admin, billing, session } = await authenticate.admin(request);
   const formData = await request.formData();
   const intent = formData.get("intent");
@@ -143,7 +156,7 @@ export const action = async ({ request }) => {
     return json({ test: { matched: true, ruleType: rule.ruleType, blocked: discountApplied, discountApplied } });
   }
   return json({ ok: true });
-};
+}
 
 // No fabricated "Draft"/"Scheduled" tabs — those aren't real rule states
 // yet (v1 only has Active/Paused, see RULE_STATUS). Showing them with a

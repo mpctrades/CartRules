@@ -24,16 +24,21 @@ export const action = async ({ request }) => {
   const { admin } = await authenticate.admin(request);
   const formData = await request.formData();
 
-  await setSettings(admin, {
-    protectionEnabled: formData.get("protectionEnabled") === "true",
-    productNoticesEnabled: formData.get("productNoticesEnabled") === "true",
-    cartNoticesEnabled: formData.get("cartNoticesEnabled") === "true",
-    defaultMessages: {
-      [RULE_TYPES.NO_DISCOUNT]: formData.get("message_no_discount") ?? "",
-      [RULE_TYPES.MAX_QUANTITY]: formData.get("message_max_quantity") ?? "",
-    },
-  });
-  await syncRulesCache(admin);
+  try {
+    await setSettings(admin, {
+      protectionEnabled: formData.get("protectionEnabled") === "true",
+      productNoticesEnabled: formData.get("productNoticesEnabled") === "true",
+      cartNoticesEnabled: formData.get("cartNoticesEnabled") === "true",
+      defaultMessages: {
+        [RULE_TYPES.NO_DISCOUNT]: formData.get("message_no_discount") ?? "",
+        [RULE_TYPES.MAX_QUANTITY]: formData.get("message_max_quantity") ?? "",
+      },
+    });
+    await syncRulesCache(admin);
+  } catch (error) {
+    console.error("Failed to save settings", error);
+    return json({ ok: false, toast: "We couldn't save your settings. Please try again.", toastError: true });
+  }
 
   return json({ ok: true, toast: "Settings saved" });
 };

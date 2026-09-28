@@ -74,7 +74,10 @@ export async function ensureMetaobjectDefinition(admin) {
   return json.data.metaobjectDefinitionCreate.metaobjectDefinition.id;
 }
 
-let rulesCacheDefinitionEnsured = false;
+// Shop GIDs whose rules_cache metafield definition is known to exist. Keyed
+// per shop: this module is shared by every shop served by this process, so a
+// single boolean would skip the definition for every shop after the first.
+const rulesCacheDefinitionEnsured = new Set();
 
 /**
  * Gives the `cartrules.rules_cache` shop metafield storefront (Liquid) read
@@ -83,8 +86,8 @@ let rulesCacheDefinitionEnsured = false;
  * definition means no Liquid/Storefront API access to an app-owned metafield.
  * Idempotent: swallows the "already exists" userError.
  */
-async function ensureRulesCacheMetafieldDefinition(admin) {
-  if (rulesCacheDefinitionEnsured) return;
+async function ensureRulesCacheMetafieldDefinition(admin, shopGid) {
+  if (rulesCacheDefinitionEnsured.has(shopGid)) return;
   const response = await admin.graphql(
     `#graphql
     mutation EnsureRulesCacheDefinition($definition: MetafieldDefinitionInput!) {
@@ -112,7 +115,7 @@ async function ensureRulesCacheMetafieldDefinition(admin) {
   if (errors.length && !alreadyExists) {
     throw new Error(`Could not create rules_cache metafield definition: ${JSON.stringify(errors)}`);
   }
-  rulesCacheDefinitionEnsured = true;
+  rulesCacheDefinitionEnsured.add(shopGid);
 }
 
 function fieldsToObject(fields) {
@@ -162,7 +165,11 @@ function ruleToFields(data) {
     { key: "status", value: data.status ?? RULE_STATUS.ACTIVE },
   ];
   if (data.ruleType === RULE_TYPES.MAX_QUANTITY) {
-    fields.push({ key: "max_quantity", value: String(data.maxQuantity ?? 1) });
+    // Coerce to a whole number >= 1: a blank/0/"abc" value from the form
+    // would otherwise be rejected by the number_integer field and surface
+    // as an error page instead of a saved rule.
+    const max = Math.floor(Number(data.maxQuantity));
+    fields.push({ key: "max_quantity", value: String(Number.isFinite(max) && max >= 1 ? max : 1) });
   }
   return fields;
 }
@@ -343,7 +350,8 @@ async function expandTagToProductIds(admin, tag) {
  * see extensions/cartrules-validation/src/index.js.
  */
 export async function syncRulesCache(admin) {
-  await ensureRulesCacheMetafieldDefinition(admin);
+  const shopGid = await getShopGid(admin);
+  await ensureRulesCacheMetafieldDefinition(admin, shopGid);
   const all = await listRules(admin);
   const active = all.filter((r) => r.status === RULE_STATUS.ACTIVE);
   const settings = await getSettings(admin);
@@ -412,7 +420,7 @@ export async function syncRulesCache(admin) {
       variables: {
         metafields: [
           {
-            ownerId: await getShopGid(admin),
+            ownerId: shopGid,
             namespace: CACHE_NAMESPACE,
             key: CACHE_KEY,
             type: "json",
@@ -435,14 +443,15 @@ export async function syncRulesCache(admin) {
   }
 }
 
-let cachedShopGid = null;
+// Not cached: this module is shared by every shop served by this process,
+// and `admin` doesn't expose which shop it belongs to, so a module-level
+// cache would hand shop A's GID to shop B (metafieldsSet then fails with an
+// owner error for every shop after the first one to load the app).
 export async function getShopGid(admin) {
-  if (cachedShopGid) return cachedShopGid;
   const response = await admin.graphql(`#graphql
-    query { shop { id } }`);
+    query ShopGid { shop { id } }`);
   const json = await response.json();
-  cachedShopGid = json.data.shop.id;
-  return cachedShopGid;
+  return json.data.shop.id;
 }
 
 /**

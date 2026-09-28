@@ -9,6 +9,7 @@ import {
   TextField,
   Select,
   Text,
+  Banner,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { listRules, updateRule } from "../models/rules.server";
@@ -33,16 +34,21 @@ export const action = async ({ request, params }) => {
   const gid = decodeURIComponent(params.id);
 
   const title = formData.get("title");
-  await updateRule(admin, gid, {
-    title,
-    ruleType: formData.get("ruleType"),
-    targetType: formData.get("targetType"),
-    targetValue: formData.get("targetValue"),
-    maxQuantity: formData.get("maxQuantity") ? Number(formData.get("maxQuantity")) : null,
-    message: formData.get("message"),
-    status: formData.get("status"),
-  });
-  return redirectWithToast("/app", `Rule "${title || "Untitled rule"}" updated`);
+  try {
+    await updateRule(admin, gid, {
+      title,
+      ruleType: formData.get("ruleType"),
+      targetType: formData.get("targetType"),
+      targetValue: formData.get("targetValue"),
+      maxQuantity: formData.get("maxQuantity") ? Number(formData.get("maxQuantity")) : null,
+      message: formData.get("message"),
+      status: formData.get("status"),
+    });
+  } catch (error) {
+    console.error("Failed to update rule", { id: gid, error });
+    return json({ ok: false, error: "We couldn't save your changes. Please try again." });
+  }
+  return redirectWithToast("/app/rules", `Rule "${title || "Untitled rule"}" updated`);
 };
 
 export default function EditRule() {
@@ -72,7 +78,7 @@ export default function EditRule() {
   };
 
   return (
-    <Page title="Edit rule" backAction={{ content: "Rules", onAction: () => navigate("/app") }}>
+    <Page title="Edit rule" backAction={{ content: "Rules", onAction: () => navigate("/app/rules") }}>
       <BlockStack gap="400">
         <Eyebrow>Edit rule</Eyebrow>
         <Card>
@@ -130,6 +136,7 @@ export default function EditRule() {
               multiline={3}
               autoComplete="off"
             />
+            {fetcher.data?.ok === false ? <Banner tone="critical">{fetcher.data.error}</Banner> : null}
             <Button variant="primary" loading={fetcher.state !== "idle"} onClick={save}>
               Save changes
             </Button>
