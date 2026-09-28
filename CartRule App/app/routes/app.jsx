@@ -16,7 +16,10 @@ export default function App() {
   const { apiKey } = useLoaderData();
 
   return (
-    <AppProvider isEmbeddedApp apiKey={apiKey}>
+    // isEmbeddedApp={false} only stops AppProvider from injecting its own
+    // App Bridge <script> — app/root.jsx already loads it (with the API key)
+    // as the first script in <head>. The app is still fully embedded.
+    <AppProvider isEmbeddedApp={false} apiKey={apiKey}>
       {/* Analytics is intentionally not linked yet — it needs real tracking
           data beyond what the Activity page already shows before it earns
           its own nav item. Everything else in the target nav is built. */}

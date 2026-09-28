@@ -6,15 +6,19 @@ import db from "../db.server";
 // store. CartRules' actual business data (rules) lives in the shop's own
 // metaobjects/metafields, which Shopify erases as part of the shop's data
 // lifecycle — not something this app needs to (or can) act on. The only
-// thing we hold ourselves is the OAuth session row, already deleted by the
-// app/uninstalled handler; this is just a defensive second pass in case that
-// ever failed or the merchant reinstalled and uninstalled again quickly.
+// things we hold ourselves are the OAuth session rows (already deleted by the
+// app/uninstalled handler — this is a defensive second pass) and the
+// RuleEvent activity history (app/models/events.server.js), which must be
+// erased here too.
 export const action = async ({ request }) => {
   const { shop, topic } = await authenticate.webhook(request);
 
-  console.log(`Received ${topic} webhook for ${shop} — clearing any remaining session rows`);
+  console.log(`Received ${topic} webhook for ${shop} — erasing sessions and rule activity history`);
 
-  await db.session.deleteMany({ where: { shop } });
+  await db.$transaction([
+    db.ruleEvent.deleteMany({ where: { shop } }),
+    db.session.deleteMany({ where: { shop } }),
+  ]);
 
   return new Response();
 };

@@ -12,11 +12,11 @@ import {
   Text,
   Banner,
 } from "@shopify/polaris";
-import { authenticate } from "../shopify.server";
+import { authenticate, BILLING_PLANS, FREE_PLAN_RULE_LIMIT } from "../shopify.server";
 import { createRule, countActiveRules } from "../models/rules.server";
 import { getSettings } from "../models/settings.server";
+import { hasPaidPlan } from "../models/shop.server";
 import { RULE_TYPES, TARGET_TYPES, RULE_STATUS } from "../models/ruleConstants";
-import { FREE_PLAN_RULE_LIMIT } from "../shopify.server";
 import RuleTypeCards from "../components/RuleTypeCards";
 import { redirectWithToast } from "../utils/toastRedirect.server";
 import { Eyebrow, StepBadge } from "../components/brand";
@@ -28,7 +28,7 @@ export const loader = async ({ request }) => {
 };
 
 export const action = async ({ request }) => {
-  const { admin } = await authenticate.admin(request);
+  const { admin, billing, session } = await authenticate.admin(request);
   const formData = await request.formData();
   const intent = formData.get("intent");
 
@@ -46,7 +46,7 @@ export const action = async ({ request }) => {
         query CountByTag($query: String!) {
           products(first: 250, query: $query) { nodes { id } }
         }`,
-        { variables: { query: `tag:'${targetValue}'` } },
+        { variables: { query: `tag:'${String(targetValue ?? "").replace(/['\\]/g, "\\$&")}'` } },
       );
       const data = await response.json();
       return json({ count: data.data?.products?.nodes?.length ?? 0 });
@@ -61,12 +61,12 @@ export const action = async ({ request }) => {
             }`
           : `#graphql
             query CollectionByHandle($handle: String!) {
-              collectionByHandle(handle: $handle) { title productsCount { count } }
+              collectionByIdentifier(identifier: { handle: $handle }) { title productsCount { count } }
             }`,
         { variables: isGid ? { id: targetValue } : { handle: targetValue } },
       );
       const data = await response.json();
-      const node = isGid ? data.data?.collection : data.data?.collectionByHandle;
+      const node = isGid ? data.data?.collection : data.data?.collectionByIdentifier;
       return json({ count: node?.productsCount?.count ?? 0, title: node?.title });
     }
 
@@ -76,11 +76,11 @@ export const action = async ({ request }) => {
           ? `#graphql
             query ProductById($id: ID!) { product(id: $id) { id title } }`
           : `#graphql
-            query ProductByHandle($handle: String!) { productByHandle(handle: $handle) { id title } }`,
+            query ProductByHandle($handle: String!) { productByIdentifier(identifier: { handle: $handle }) { id title } }`,
         { variables: isGid ? { id: targetValue } : { handle: targetValue } },
       );
       const data = await response.json();
-      const node = isGid ? data.data?.product : data.data?.productByHandle;
+      const node = isGid ? data.data?.product : data.data?.productByIdentifier;
       return json({ count: node ? 1 : 0, title: node?.title });
     }
 
@@ -88,10 +88,12 @@ export const action = async ({ request }) => {
   }
 
   if (intent === "save") {
-    const activeCount = await countActiveRules(admin);
-    // Enforce Free plan cap server-side (brief section 08).
-    // TODO once billing is wired: check the shop's real plan via
-    // billing.check() instead of assuming Free whenever under the cap.
+    // Enforce the Free plan cap server-side (brief section 08) — only for
+    // shops without an active Growth/Pro subscription.
+    const [activeCount, isPaid] = await Promise.all([
+      countActiveRules(admin),
+      hasPaidPlan(admin, billing, session.shop, Object.values(BILLING_PLANS)),
+    ]);
     const ruleType = formData.get("ruleType");
     const targetType = formData.get("targetType");
     const maxQuantity = formData.get("maxQuantity");
@@ -108,22 +110,22 @@ export const action = async ({ request }) => {
     if (targetType === TARGET_TYPES.PRODUCT && !isGid) {
       const resp = await admin.graphql(
         `#graphql
-        query ResolveProduct($handle: String!) { productByHandle(handle: $handle) { id } }`,
+        query ResolveProduct($handle: String!) { productByIdentifier(identifier: { handle: $handle }) { id } }`,
         { variables: { handle: targetValue } },
       );
       const data = await resp.json();
-      targetValue = data.data?.productByHandle?.id ?? targetValue;
+      targetValue = data.data?.productByIdentifier?.id ?? targetValue;
     } else if (targetType === TARGET_TYPES.COLLECTION && !isGid) {
       const resp = await admin.graphql(
         `#graphql
-        query ResolveCollection($handle: String!) { collectionByHandle(handle: $handle) { id } }`,
+        query ResolveCollection($handle: String!) { collectionByIdentifier(identifier: { handle: $handle }) { id } }`,
         { variables: { handle: targetValue } },
       );
       const data = await resp.json();
-      targetValue = data.data?.collectionByHandle?.id ?? targetValue;
+      targetValue = data.data?.collectionByIdentifier?.id ?? targetValue;
     }
 
-    if (activeCount >= FREE_PLAN_RULE_LIMIT) {
+    if (!isPaid && activeCount >= FREE_PLAN_RULE_LIMIT) {
       // Still allow saving as PAUSED so the merchant doesn't lose their work.
       await createRule(admin, {
         title,

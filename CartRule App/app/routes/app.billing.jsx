@@ -42,9 +42,23 @@ export const action = async ({ request }) => {
   if (plan === "Free") {
     const subscriptionId = formData.get("subscriptionId");
     if (subscriptionId) {
-      await billing.cancel({ subscriptionId, isTest, prorate: true });
+      try {
+        await billing.cancel({ subscriptionId, isTest, prorate: true });
+      } catch (error) {
+        if (error instanceof Response) throw error;
+        console.error("Billing cancel failed", { shop: session.shop, subscriptionId, error });
+        return json({
+          ok: false,
+          billingError:
+            "We couldn't switch you to the Free plan. Please try again in a moment — if it keeps happening, contact support.",
+        });
+      }
     }
     return json({ ok: true });
+  }
+
+  if (!Object.values(BILLING_PLANS).includes(plan)) {
+    return json({ ok: false, billingError: "That plan isn't available." }, { status: 400 });
   }
 
   try {

@@ -25,9 +25,9 @@
 
       {% if matches %}
         {% assign rendered_notice = true %}
-        <div class="cartrules-notice" data-cartrules-max="{{ rule.maxQuantity }}">
+        <div class="cartrules-notice" data-cartrules-max="{{ rule.maxQuantity | escape }}">
           {% if rule.message != blank %}
-            {{ rule.message }}
+            {{ rule.message | escape }}
           {% else %}
             Maximum {{ rule.maxQuantity }} per order for this item.
           {% endif %}

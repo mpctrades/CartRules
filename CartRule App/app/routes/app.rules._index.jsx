@@ -23,9 +23,16 @@ import {
 } from "@shopify/polaris";
 import { MenuHorizontalIcon, CheckCircleIcon, AlertTriangleIcon } from "@shopify/polaris-icons";
 import { authenticate, BILLING_PLANS, FREE_PLAN_RULE_LIMIT } from "../shopify.server";
-import { listRules, readRulesCache, setRuleStatus, deleteRule, duplicateRule } from "../models/rules.server";
+import {
+  listRules,
+  readRulesCache,
+  setRuleStatus,
+  deleteRule,
+  duplicateRule,
+  countActiveRules,
+} from "../models/rules.server";
 import { getTriggerCountsByRule } from "../models/events.server";
-import { isDevelopmentStore } from "../models/shop.server";
+import { hasPaidPlan, isDevelopmentStore } from "../models/shop.server";
 import { RULE_TYPES, TARGET_TYPES, RULE_STATUS } from "../models/ruleConstants";
 import { useActionToast } from "../utils/useActionToast";
 import { Eyebrow } from "../components/brand";
@@ -59,7 +66,7 @@ export const loader = async ({ request }) => {
 };
 
 export const action = async ({ request }) => {
-  const { admin } = await authenticate.admin(request);
+  const { admin, billing, session } = await authenticate.admin(request);
   const formData = await request.formData();
   const intent = formData.get("intent");
   const id = formData.get("id");
@@ -71,6 +78,21 @@ export const action = async ({ request }) => {
 
   if (intent === "toggle") {
     const nextStatus = formData.get("nextStatus");
+    // Same Free-plan cap as rule creation (app.rules.new.jsx) — without this,
+    // a Free shop could create paused rules and then activate them all here.
+    if (nextStatus === RULE_STATUS.ACTIVE) {
+      const [activeCount, isPaid] = await Promise.all([
+        countActiveRules(admin),
+        hasPaidPlan(admin, billing, session.shop, Object.values(BILLING_PLANS)),
+      ]);
+      if (!isPaid && activeCount >= FREE_PLAN_RULE_LIMIT) {
+        return json({
+          ok: false,
+          toast: `Free plan allows ${FREE_PLAN_RULE_LIMIT} active rules — upgrade in Plan & billing to activate "${title}".`,
+          toastError: true,
+        });
+      }
+    }
     await setRuleStatus(admin, id, nextStatus);
     return json({
       ok: true,
