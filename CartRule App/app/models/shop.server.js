@@ -34,3 +34,14 @@ export async function isDevelopmentStore(admin, shop) {
   devStoreCache.set(shop, { value, expiresAt: Date.now() + CACHE_TTL_MS });
   return value;
 }
+
+// True when the shop has an active Growth/Pro subscription. Free-plan limits
+// (FREE_PLAN_RULE_LIMIT active rules) must only apply when this is false —
+// a paying merchant hitting the Free cap is a broken paid plan.
+export async function hasPaidPlan(admin, billing, shop, plans) {
+  const { hasActivePayment } = await billing.check({
+    plans,
+    isTest: await isDevelopmentStore(admin, shop),
+  });
+  return hasActivePayment;
+}

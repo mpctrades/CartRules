@@ -1,11 +1,12 @@
 import { authenticate } from "../shopify.server";
 
 // GDPR mandatory webhook. Shopify calls this when a customer asks a merchant
-// what data an app holds about them. We hold none: CartRules never stores
-// customer names/emails/orders anywhere — rules are shop-level configuration
-// (product/collection/tag targeting + a merchant-written message), stored as
-// Shopify metaobjects/metafields, not customer records. So there is nothing
-// to gather or return here; acknowledging the webhook is the correct response.
+// what data an app holds about them. CartRules stores no customer personal
+// data: rules are shop-level configuration stored as Shopify
+// metaobjects/metafields, and the RuleEvent activity log only holds order
+// ids + product/rule info (no name, email, address or customer id). The
+// merchant already has those orders in their own admin, so there is nothing
+// customer-identifying to return; acknowledging the webhook is correct.
 export const action = async ({ request }) => {
   const { shop, topic, payload } = await authenticate.webhook(request);
 

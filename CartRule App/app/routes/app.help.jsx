@@ -18,7 +18,7 @@ import {
 import { ChevronDownIcon, ChevronUpIcon } from "@shopify/polaris-icons";
 import { authenticate, BILLING_PLANS } from "../shopify.server";
 import { isDevelopmentStore } from "../models/shop.server";
-import { getThemeEditorDeepLink } from "../utils/themeEditor";
+import { getCartThemeEditorDeepLink, getThemeEditorDeepLink } from "../utils/themeEditor";
 import { Eyebrow, StepBadge } from "../components/brand";
 
 const SUPPORT_EMAIL = "team@mpctrades.com";
@@ -288,7 +288,8 @@ export default function Help() {
                     </List.Item>
                     <List.Item>Click Save (top right) to publish it live.</List.Item>
                     <List.Item>
-                      Optional: on your cart page template, click Add block → Apps → CartRules Cart quantity guard.
+                      Optional: click "Add cart quantity guard" below to add the cart-page block the same way (or,
+                      on your cart template, click Add block → Apps → CartRules Cart quantity guard), then Save.
                     </List.Item>
                     <List.Item>
                       To reorder either block, drag it up or down within the section in the theme editor. To remove
@@ -296,9 +297,14 @@ export default function Help() {
                       message.
                     </List.Item>
                   </List>
-                  <Button onClick={() => window.open(getThemeEditorDeepLink(shop), "_blank")}>
-                    Open theme editor
-                  </Button>
+                  <InlineStack gap="200">
+                    <Button onClick={() => window.open(getThemeEditorDeepLink(shop), "_blank")}>
+                      Open theme editor
+                    </Button>
+                    <Button onClick={() => window.open(getCartThemeEditorDeepLink(shop), "_blank")}>
+                      Add cart quantity guard
+                    </Button>
+                  </InlineStack>
                   <ThemeBlockDiagram />
                   <Box paddingBlockStart="100">
                     <Text as="p" tone="subdued">

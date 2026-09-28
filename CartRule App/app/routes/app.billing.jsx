@@ -42,9 +42,23 @@ export const action = async ({ request }) => {
   if (plan === "Free") {
     const subscriptionId = formData.get("subscriptionId");
     if (subscriptionId) {
-      await billing.cancel({ subscriptionId, isTest, prorate: true });
+      try {
+        await billing.cancel({ subscriptionId, isTest, prorate: true });
+      } catch (error) {
+        if (error instanceof Response) throw error;
+        console.error("Billing cancel failed", { shop: session.shop, subscriptionId, error });
+        return json({
+          ok: false,
+          billingError:
+            "We couldn't switch you to the Free plan. Please try again in a moment — if it keeps happening, contact support.",
+        });
+      }
     }
     return json({ ok: true });
+  }
+
+  if (!Object.values(BILLING_PLANS).includes(plan)) {
+    return json({ ok: false, billingError: "That plan isn't available." }, { status: 400 });
   }
 
   try {
@@ -90,21 +104,33 @@ export const action = async ({ request }) => {
 // client bundle also needs breaks Remix's client/server code splitting (see
 // the "Server-only module referenced by client" build error this fixed).
 // Keep these in sync with BILLING_PLANS / FREE_PLAN_RULE_LIMIT in shopify.server.js.
+// Every feature is available on every plan — plans differ only in the
+// active-rule cap (enforced in app.rules.new.jsx / app.rules._index.jsx) and
+// support level. Don't list a feature under a paid plan unless the code
+// actually gates it (App Store requirement 1.1.4, factual information), and
+// keep this in sync with the pricing section of CartRule Web/index.html and
+// the App Store listing.
 const PLAN_COPY = [
   {
     key: "Free",
     price: "0 USD",
-    features: ["3 active rules", "Both rule types", "Default messages"],
+    features: [
+      "3 active rules",
+      "Both rule types",
+      "Product, collection & tag targeting",
+      "Custom messages (any language)",
+      "Product-page & cart notices",
+    ],
   },
   {
     key: "Growth",
     price: "4.99 USD/mo",
-    features: ["Unlimited rules", "Custom messages (any language)", "Tag & collection targeting", "Email support"],
+    features: ["Everything in Free", "Unlimited active rules", "Email support"],
   },
   {
     key: "Pro",
     price: "9.99 USD/mo",
-    features: ["Everything in Growth", "Product-page notices", "Priority support"],
+    features: ["Everything in Growth", "Unlimited active rules", "Priority support"],
   },
 ];
 
