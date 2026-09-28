@@ -83,7 +83,12 @@ export const action = async ({ request }) => {
   const { admin } = await authenticate.admin(request);
   const formData = await request.formData();
   if (formData.get("intent") === "markStorefrontMessagesAdded") {
-    await setSetupFlag(admin, "storefrontMessagesAdded", true);
+    try {
+      await setSetupFlag(admin, "storefrontMessagesAdded", true);
+    } catch (error) {
+      console.error("Failed to save setup flag", error);
+      return json({ ok: false });
+    }
   }
   return json({ ok: true });
 };

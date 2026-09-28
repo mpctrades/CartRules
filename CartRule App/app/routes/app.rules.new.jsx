@@ -33,100 +33,125 @@ export const action = async ({ request }) => {
   const intent = formData.get("intent");
 
   if (intent === "lookup") {
-    // Step 2 live count: how many products match this tag/collection/product?
-    // Product/collection come from the App Bridge ResourcePicker as GIDs;
-    // tags are still free text (a tag has no "resource" to pick).
-    const targetType = formData.get("targetType");
-    const targetValue = formData.get("targetValue");
-    const isGid = targetValue?.startsWith("gid://");
+    // Only feeds the "N product(s) found" hint — a failure here must not
+    // replace the whole wizard with an error page.
+    try {
+      // Step 2 live count: how many products match this tag/collection/product?
+      // Product/collection come from the App Bridge ResourcePicker as GIDs;
+      // tags are still free text (a tag has no "resource" to pick).
+      const targetType = formData.get("targetType");
+      const targetValue = formData.get("targetValue");
+      const isGid = targetValue?.startsWith("gid://");
 
-    if (targetType === TARGET_TYPES.TAG) {
-      const response = await admin.graphql(
-        `#graphql
-        query CountByTag($query: String!) {
-          products(first: 250, query: $query) { nodes { id } }
-        }`,
-        { variables: { query: `tag:'${String(targetValue ?? "").replace(/['\\]/g, "\\$&")}'` } },
-      );
-      const data = await response.json();
-      return json({ count: data.data?.products?.nodes?.length ?? 0 });
+      if (targetType === TARGET_TYPES.TAG) {
+        const response = await admin.graphql(
+          `#graphql
+          query CountByTag($query: String!) {
+            products(first: 250, query: $query) { nodes { id } }
+          }`,
+          { variables: { query: `tag:'${String(targetValue ?? "").replace(/['\\]/g, "\\$&")}'` } },
+        );
+        const data = await response.json();
+        return json({ count: data.data?.products?.nodes?.length ?? 0 });
+      }
+
+      if (targetType === TARGET_TYPES.COLLECTION) {
+        const response = await admin.graphql(
+          isGid
+            ? `#graphql
+              query CollectionById($id: ID!) {
+                collection(id: $id) { title productsCount { count } }
+              }`
+            : `#graphql
+              query CollectionByHandle($handle: String!) {
+                collectionByIdentifier(identifier: { handle: $handle }) { title productsCount { count } }
+              }`,
+          { variables: isGid ? { id: targetValue } : { handle: targetValue } },
+        );
+        const data = await response.json();
+        const node = isGid ? data.data?.collection : data.data?.collectionByIdentifier;
+        return json({ count: node?.productsCount?.count ?? 0, title: node?.title });
+      }
+
+      if (targetType === TARGET_TYPES.PRODUCT) {
+        const response = await admin.graphql(
+          isGid
+            ? `#graphql
+              query ProductById($id: ID!) { product(id: $id) { id title } }`
+            : `#graphql
+              query ProductByHandle($handle: String!) { productByIdentifier(identifier: { handle: $handle }) { id title } }`,
+          { variables: isGid ? { id: targetValue } : { handle: targetValue } },
+        );
+        const data = await response.json();
+        const node = isGid ? data.data?.product : data.data?.productByIdentifier;
+        return json({ count: node ? 1 : 0, title: node?.title });
+      }
+
+      return json({ count: 0 });
+    } catch (error) {
+      if (error instanceof Response) throw error;
+      console.error("Rule target lookup failed", error);
+      return json({ count: null });
     }
-
-    if (targetType === TARGET_TYPES.COLLECTION) {
-      const response = await admin.graphql(
-        isGid
-          ? `#graphql
-            query CollectionById($id: ID!) {
-              collection(id: $id) { title productsCount { count } }
-            }`
-          : `#graphql
-            query CollectionByHandle($handle: String!) {
-              collectionByIdentifier(identifier: { handle: $handle }) { title productsCount { count } }
-            }`,
-        { variables: isGid ? { id: targetValue } : { handle: targetValue } },
-      );
-      const data = await response.json();
-      const node = isGid ? data.data?.collection : data.data?.collectionByIdentifier;
-      return json({ count: node?.productsCount?.count ?? 0, title: node?.title });
-    }
-
-    if (targetType === TARGET_TYPES.PRODUCT) {
-      const response = await admin.graphql(
-        isGid
-          ? `#graphql
-            query ProductById($id: ID!) { product(id: $id) { id title } }`
-          : `#graphql
-            query ProductByHandle($handle: String!) { productByIdentifier(identifier: { handle: $handle }) { id title } }`,
-        { variables: isGid ? { id: targetValue } : { handle: targetValue } },
-      );
-      const data = await response.json();
-      const node = isGid ? data.data?.product : data.data?.productByIdentifier;
-      return json({ count: node ? 1 : 0, title: node?.title });
-    }
-
-    return json({ count: 0 });
   }
 
   if (intent === "save") {
-    // Enforce the Free plan cap server-side (brief section 08) — only for
-    // shops without an active Growth/Pro subscription.
-    const [activeCount, isPaid] = await Promise.all([
-      countActiveRules(admin),
-      hasPaidPlan(admin, billing, session.shop, Object.values(BILLING_PLANS)),
-    ]);
-    const ruleType = formData.get("ruleType");
-    const targetType = formData.get("targetType");
-    const maxQuantity = formData.get("maxQuantity");
-    const message = formData.get("message");
-    const title = formData.get("title");
+    try {
+      // Enforce the Free plan cap server-side (brief section 08) — only for
+      // shops without an active Growth/Pro subscription.
+      const [activeCount, isPaid] = await Promise.all([
+        countActiveRules(admin),
+        hasPaidPlan(admin, billing, session.shop, Object.values(BILLING_PLANS)),
+      ]);
+      const ruleType = formData.get("ruleType");
+      const targetType = formData.get("targetType");
+      const maxQuantity = formData.get("maxQuantity");
+      const message = formData.get("message");
+      const title = formData.get("title");
 
-    // rules.server.js stores target_value as a product/collection GID. The
-    // App Bridge ResourcePicker hands us a GID directly, so normally there's
-    // nothing to resolve here. The handle-based fallback stays in place only
-    // in case targetValue ever arrives as a plain handle (e.g. a future
-    // non-picker entry point) — it's a no-op whenever the picker was used.
-    let targetValue = formData.get("targetValue");
-    const isGid = targetValue?.startsWith("gid://");
-    if (targetType === TARGET_TYPES.PRODUCT && !isGid) {
-      const resp = await admin.graphql(
-        `#graphql
-        query ResolveProduct($handle: String!) { productByIdentifier(identifier: { handle: $handle }) { id } }`,
-        { variables: { handle: targetValue } },
-      );
-      const data = await resp.json();
-      targetValue = data.data?.productByIdentifier?.id ?? targetValue;
-    } else if (targetType === TARGET_TYPES.COLLECTION && !isGid) {
-      const resp = await admin.graphql(
-        `#graphql
-        query ResolveCollection($handle: String!) { collectionByIdentifier(identifier: { handle: $handle }) { id } }`,
-        { variables: { handle: targetValue } },
-      );
-      const data = await resp.json();
-      targetValue = data.data?.collectionByIdentifier?.id ?? targetValue;
-    }
+      // rules.server.js stores target_value as a product/collection GID. The
+      // App Bridge ResourcePicker hands us a GID directly, so normally there's
+      // nothing to resolve here. The handle-based fallback stays in place only
+      // in case targetValue ever arrives as a plain handle (e.g. a future
+      // non-picker entry point) — it's a no-op whenever the picker was used.
+      let targetValue = formData.get("targetValue");
+      const isGid = targetValue?.startsWith("gid://");
+      if (targetType === TARGET_TYPES.PRODUCT && !isGid) {
+        const resp = await admin.graphql(
+          `#graphql
+          query ResolveProduct($handle: String!) { productByIdentifier(identifier: { handle: $handle }) { id } }`,
+          { variables: { handle: targetValue } },
+        );
+        const data = await resp.json();
+        targetValue = data.data?.productByIdentifier?.id ?? targetValue;
+      } else if (targetType === TARGET_TYPES.COLLECTION && !isGid) {
+        const resp = await admin.graphql(
+          `#graphql
+          query ResolveCollection($handle: String!) { collectionByIdentifier(identifier: { handle: $handle }) { id } }`,
+          { variables: { handle: targetValue } },
+        );
+        const data = await resp.json();
+        targetValue = data.data?.collectionByIdentifier?.id ?? targetValue;
+      }
 
-    if (!isPaid && activeCount >= FREE_PLAN_RULE_LIMIT) {
-      // Still allow saving as PAUSED so the merchant doesn't lose their work.
+      if (!isPaid && activeCount >= FREE_PLAN_RULE_LIMIT) {
+        // Still allow saving as PAUSED so the merchant doesn't lose their work.
+        await createRule(admin, {
+          title,
+          ruleType,
+          targetType,
+          targetValue,
+          maxQuantity: maxQuantity ? Number(maxQuantity) : null,
+          message,
+          status: RULE_STATUS.PAUSED,
+        });
+        return redirectWithToast(
+          "/app",
+          `Free plan limit reached — "${title}" was saved as paused. Upgrade to activate it.`,
+          { isError: true },
+        );
+      }
+
       await createRule(admin, {
         title,
         ruleType,
@@ -134,25 +159,14 @@ export const action = async ({ request }) => {
         targetValue,
         maxQuantity: maxQuantity ? Number(maxQuantity) : null,
         message,
-        status: RULE_STATUS.PAUSED,
+        status: RULE_STATUS.ACTIVE,
       });
-      return redirectWithToast(
-        "/app",
-        `Free plan limit reached — "${title}" was saved as paused. Upgrade to activate it.`,
-        { isError: true },
-      );
+      return redirectWithToast("/app", `Rule "${title}" created and activated`);
+    } catch (error) {
+      if (error instanceof Response) throw error;
+      console.error("Failed to save rule", error);
+      return json({ ok: false, error: "We couldn't save this rule. Please try again." });
     }
-
-    await createRule(admin, {
-      title,
-      ruleType,
-      targetType,
-      targetValue,
-      maxQuantity: maxQuantity ? Number(maxQuantity) : null,
-      message,
-      status: RULE_STATUS.ACTIVE,
-    });
-    return redirectWithToast("/app", `Rule "${title}" created and activated`);
   }
 
   return json({ ok: false }, { status: 400 });
@@ -221,7 +235,7 @@ export default function NewRule() {
   };
 
   return (
-    <Page title="New rule" backAction={{ content: "Rules", onAction: () => navigate("/app") }}>
+    <Page title="New rule" backAction={{ content: "Rules", onAction: () => navigate("/app/rules") }}>
       <BlockStack gap="400">
         <Eyebrow>New rule</Eyebrow>
         <Card>
@@ -321,7 +335,7 @@ export default function NewRule() {
               helpText="Write this in whichever language your customers read — French, Japanese, anything. It's stored and shown as-is."
             />
             {saveFetcher.data?.ok === false ? (
-              <Banner tone="critical">Something went wrong saving this rule.</Banner>
+              <Banner tone="critical">{saveFetcher.data.error ?? "Something went wrong saving this rule."}</Banner>
             ) : null}
             <InlineStack align="end">
               <Button
