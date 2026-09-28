@@ -46,8 +46,7 @@ api_version = "2026-07"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-# CartRules reads products (for the rule wizard's targeting), discounts (to
-# detect when a native code touches an excluded product), and read/writes
+# CartRules reads products (for the rule wizard's targeting) and read/writes
 # the metaobjects that ARE the app's actual data (see README "Does this app
 # need a database?"). No read_metafields/write_metafields scope: those
 # are invalid/unnecessary here — the app owns the "cartrules" metafield
@@ -58,8 +57,11 @@ api_version = "2026-07"
 # TYPE (ensureMetaobjectDefinition), not just metaobject records, so it
 # needs both pairs. read_orders is NOT requested here — see the disabled
 # orders/create webhook above for why (Protected Customer Data gate);
-# add it back alongside that webhook once access is approved.
-scopes = "read_products,read_discounts,read_metaobjects,write_metaobjects,read_metaobject_definitions,write_metaobject_definitions"
+# add it back alongside that webhook once access is approved. read_discounts
+# is NOT needed either: the checkout Function reads cart-line
+# discountAllocations from its own input, which requires no app scope, and
+# nothing else calls a discount API (App Store requirement 3.2).
+scopes = "read_products,read_metaobjects,write_metaobjects,read_metaobject_definitions,write_metaobject_definitions"
 optional_scopes = [ ]
 use_legacy_install_flow = false
 
