@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { json } from "@remix-run/node";
-import { useLoaderData, useNavigate, useSearchParams, useSubmit } from "@remix-run/react";
+import { useFetcher, useLoaderData, useNavigate, useSearchParams, useSubmit } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -14,15 +14,17 @@ import {
   ProgressBar,
   Badge,
   List,
+  Banner,
 } from "@shopify/polaris";
 import { ChartLineIcon, CartDiscountIcon, AlertTriangleIcon, ShieldCheckMarkIcon } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
-import { listRules, getSetupFlags, setSetupFlag } from "../models/rules.server";
+import { listRules, getSetupFlags, setSetupFlag, getCheckoutEnforcement, ensureValidationActive } from "../models/rules.server";
 import { getThemeEditorDeepLink } from "../utils/themeEditor";
 import { getKpis, getActivitySeries, getActivityFeed, hasAnyEvent } from "../models/events.server";
 import { getSettings } from "../models/settings.server";
 import { RULE_STATUS } from "../models/ruleConstants";
 import { useFlashToast } from "../utils/useFlashToast";
+import { useActionToast } from "../utils/useActionToast";
 import { Eyebrow, IconChip, BRAND_ORANGE } from "../components/brand";
 
 const PERIODS = [
@@ -57,6 +59,10 @@ export const loader = async ({ request }) => {
   ]);
 
   const activeCount = rules.filter((r) => r.status === RULE_STATUS.ACTIVE).length;
+  // Whether Shopify is actually running CartRules at checkout — the status
+  // shown below must match Shopify's checkout settings, not just our own
+  // rule count (App Store requirement 2.1.4).
+  const checkoutEnforcing = await getCheckoutEnforcement(admin, activeCount);
   const pausedCount = rules.filter((r) => r.status === RULE_STATUS.PAUSED).length;
 
   return json({
@@ -69,11 +75,15 @@ export const loader = async ({ request }) => {
     series,
     recentActivity,
     protectionEnabled: settings.protectionEnabled,
+    checkoutEnforcing,
     checklist: {
       createdRule: rules.length > 0,
       activatedRule: activeCount > 0,
       addedStorefrontMessages: !!setupFlags.storefrontMessagesAdded,
-      testedRule: hasEvents,
+      // Real order activity needs the (currently disabled) orders/create
+      // webhook, so running the Rules page's "Test rule" tool counts too —
+      // otherwise this step could never be completed.
+      testedRule: hasEvents || !!setupFlags.ruleTested,
     },
     shop: session.shop,
   });
@@ -82,6 +92,15 @@ export const loader = async ({ request }) => {
 export const action = async ({ request }) => {
   const { admin } = await authenticate.admin(request);
   const formData = await request.formData();
+  if (formData.get("intent") === "enableValidation") {
+    try {
+      await ensureValidationActive(admin);
+    } catch (error) {
+      console.error("Failed to enable checkout validation", error);
+      return json({ ok: false, toast: "Couldn't turn on CartRules at checkout. Please try again.", toastError: true });
+    }
+    return json({ ok: true, toast: "CartRules is now enforced at checkout" });
+  }
   if (formData.get("intent") === "markStorefrontMessagesAdded") {
     try {
       await setSetupFlag(admin, "storefrontMessagesAdded", true);
@@ -301,8 +320,13 @@ export default function Dashboard() {
     checklist,
     shop,
     protectionEnabled,
+    checkoutEnforcing,
   } = useLoaderData();
   const navigate = useNavigate();
+  const validationFetcher = useFetcher();
+  useActionToast(validationFetcher);
+  const notEnforced = checkoutEnforcing === false && activeCount > 0;
+  const isProtecting = protectionEnabled && activeCount > 0 && !notEnforced;
   const submit = useSubmit();
   const [searchParams, setSearchParams] = useSearchParams();
   useFlashToast();
@@ -343,10 +367,16 @@ export default function Dashboard() {
             <BlockStack gap="100">
               <InlineStack gap="200" blockAlign="center">
                 <Text as="p" variant="headingMd">
-                  Your store is protected by CartRules.
+                  {isProtecting ? "Your store is protected by CartRules." : "Your store isn't protected by CartRules yet."}
                 </Text>
-                <Badge tone={protectionEnabled && activeCount > 0 ? "success" : undefined}>
-                  {!protectionEnabled ? "CartRules protection is off" : activeCount > 0 ? "CartRules active ✓" : "CartRules paused"}
+                <Badge tone={isProtecting ? "success" : notEnforced ? "critical" : undefined}>
+                  {!protectionEnabled
+                    ? "CartRules protection is off"
+                    : notEnforced
+                      ? "Off at checkout"
+                      : activeCount > 0
+                        ? "CartRules active ✓"
+                        : "CartRules paused"}
                 </Badge>
               </InlineStack>
             </BlockStack>
@@ -357,6 +387,23 @@ export default function Dashboard() {
               : `${activeCount} active rule${activeCount === 1 ? "" : "s"} · ${pausedCount} paused`}
           </Text>
         </div>
+
+        {notEnforced ? (
+          <Banner
+            tone="critical"
+            title="Your active rules aren't being enforced at checkout"
+            action={{
+              content: "Turn on at checkout",
+              loading: validationFetcher.state !== "idle",
+              onAction: () => validationFetcher.submit({ intent: "enableValidation" }, { method: "post" }),
+            }}
+          >
+            <p>
+              The CartRules checkout rule is off in Shopify (Settings → Checkout → Checkout rules), so customers can
+              check out without these limits applying.
+            </p>
+          </Banner>
+        ) : null}
 
         <InlineGrid columns={{ xs: 1, sm: 2, md: 4 }} gap="400">
           <KpiCard icon={ChartLineIcon} label="Rule triggers" kpi={kpis.triggers} tone="info" />

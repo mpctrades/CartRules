@@ -6,6 +6,7 @@ import {
 } from "@shopify/shopify-app-remix/server";
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import prisma from "./db.server";
+import { ensureValidationActive } from "./models/rules.server";
 
 // The installed @shopify/shopify-api's `ApiVersion` enum tops out at "2025-07"
 // (its latest npm release hasn't been bumped) — over a year stale relative to
@@ -64,7 +65,7 @@ const shopify = shopifyApp({
     },
   },
   hooks: {
-    afterAuth: async ({ session }) => {
+    afterAuth: async ({ session, admin }) => {
       // `shopify` is a `const` declared below, but this callback only runs
       // later (after a merchant installs/re-authorizes), by which point the
       // module has finished evaluating and `shopify` is defined — safe closure.
@@ -76,6 +77,14 @@ const shopify = shopifyApp({
         await shopify.registerWebhooks({ session });
       } catch (error) {
         console.error("Failed to register webhooks", { shop: session.shop, error });
+      }
+      // Turn on the checkout validation at install / re-auth (e.g. after the
+      // validation scopes are granted), so rules saved before this existed —
+      // or before the merchant re-opens the rule editor — are enforced.
+      try {
+        await ensureValidationActive(admin);
+      } catch (error) {
+        console.error("Failed to activate checkout validation", { shop: session.shop, error });
       }
     },
   },
