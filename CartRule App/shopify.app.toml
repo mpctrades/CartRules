@@ -31,6 +31,12 @@ api_version = "2026-07"
   uri = "/webhooks/app/uninstalled"
   topics = [ "app/uninstalled" ]
 
+  # Keeps tag/collection rules in step with the catalog (App Store
+  # requirement 2.1.4) — see app/routes/webhooks.catalog.jsx.
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/catalog"
+  topics = [ "products/create", "products/update", "products/delete", "collections/update", "collections/delete" ]
+
   # DISABLED until Protected Customer Data access is approved for this app
   # (Partner Dashboard → this app → Distribution → API access). Shopify
   # refuses to even register a subscription to a customer-data-bearing
@@ -61,7 +67,10 @@ api_version = "2026-07"
 # is NOT needed either: the checkout Function reads cart-line
 # discountAllocations from its own input, which requires no app scope, and
 # nothing else calls a discount API (App Store requirement 3.2).
-scopes = "read_products,read_metaobjects,write_metaobjects,read_metaobject_definitions,write_metaobject_definitions"
+# read_validations/write_validations: required to create and enable the
+# checkout Validation that makes Shopify actually RUN the cartrules-validation
+# Function (ensureValidationActive in app/models/rules.server.js).
+scopes = "read_products,read_metaobjects,write_metaobjects,read_metaobject_definitions,write_metaobject_definitions,read_validations,write_validations"
 optional_scopes = [ ]
 use_legacy_install_flow = false
 

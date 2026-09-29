@@ -97,6 +97,11 @@ jobs:
           cache: "npm"
           cache-dependency-path: "CartRule App/package-lock.json"
       - run: npm ci
+      # The checkout Function has its own package.json (@shopify/shopify_function),
+      # and its compiled dist/ is gitignored — without this install `shopify app
+      # deploy` can't build the Function that enforces rules at checkout.
+      - run: npm ci
+        working-directory: "CartRule App/extensions/cartrules-validation"
       - name: shopify app deploy
         env:
           SHOPIFY_APP_AUTOMATION_TOKEN: ${{ secrets.SHOPIFY_APP_AUTOMATION_TOKEN }}

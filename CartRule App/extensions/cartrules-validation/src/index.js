@@ -49,6 +49,28 @@ export function cartValidationsGenerateRun(input) {
 
   const errors = [];
 
+  // F1/F5 — max quantity per order, counted per PRODUCT across all its cart
+  // lines: two variants of the same product (e.g. Small ×1 + Large ×1) are 2
+  // of that item, not 1 each.
+  const quantityByProduct = new Map();
+  for (const line of input.cart.lines) {
+    const merchandise = line.merchandise;
+    const productId = merchandise && merchandise.__typename === "ProductVariant" ? merchandise.product?.id : null;
+    if (!productId) continue;
+    quantityByProduct.set(productId, (quantityByProduct.get(productId) ?? 0) + line.quantity);
+  }
+  for (const rule of maxQuantityRules) {
+    if (rule.matchType !== "product_id" || !Array.isArray(rule.productIds) || !rule.maxQuantity) continue;
+    for (const productId of rule.productIds) {
+      if ((quantityByProduct.get(productId) ?? 0) > rule.maxQuantity) {
+        errors.push({
+          message: rule.message || `Maximum ${rule.maxQuantity} per order for this item.`,
+          target: "$.cart",
+        });
+      }
+    }
+  }
+
   for (const line of input.cart.lines) {
     const merchandise = line.merchandise;
     const product = merchandise && merchandise.__typename === "ProductVariant" ? merchandise.product : null;
@@ -59,16 +81,6 @@ export function cartValidationsGenerateRun(input) {
     const matchesRule = (rule) => {
       return rule.matchType === "product_id" && Array.isArray(rule.productIds) && rule.productIds.includes(productId);
     };
-
-    // F1/F5 — max quantity per order.
-    for (const rule of maxQuantityRules) {
-      if (matchesRule(rule) && rule.maxQuantity && line.quantity > rule.maxQuantity) {
-        errors.push({
-          message: rule.message || `Maximum ${rule.maxQuantity} per order for this item.`,
-          target: "$.cart",
-        });
-      }
-    }
 
     // F2 — no discount codes.
     // Simplification (documented, not accidental): this blocks on ANY
@@ -95,5 +107,15 @@ export function cartValidationsGenerateRun(input) {
     return { operations: [] };
   }
 
-  return { operations: [{ validationAdd: { errors } }] };
+  // One rule over several cart products (e.g. a collection limit) would
+  // otherwise show the same message once per product at checkout.
+  const seen = new Set();
+  const unique = errors.filter((e) => {
+    const key = `${e.target}|${e.message}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  return { operations: [{ validationAdd: { errors: unique } }] };
 }

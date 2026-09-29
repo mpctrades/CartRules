@@ -30,6 +30,10 @@ import {
   deleteRule,
   duplicateRule,
   countActiveRules,
+  setSetupFlag,
+  getValidation,
+  getCheckoutEnforcement,
+  ensureValidationActive,
 } from "../models/rules.server";
 import { getTriggerCountsByRule } from "../models/events.server";
 import { hasPaidPlan, isDevelopmentStore } from "../models/shop.server";
@@ -57,11 +61,16 @@ export const loader = async ({ request }) => {
     triggerCount: triggerCounts.get(r.id) ?? 0,
   }));
   const activeCount = rules.filter((r) => r.status === RULE_STATUS.ACTIVE).length;
+  // Shopify's own view of whether checkout is running CartRules — shown next
+  // to the rules so the app never says "Active" while Shopify has the
+  // validation off (App Store requirement 2.1.4).
+  const checkoutEnforcing = await getCheckoutEnforcement(admin, activeCount);
   return json({
     rules: rulesWithDetail,
     activeCount,
     freeLimit: FREE_PLAN_RULE_LIMIT,
     isFreePlan: !hasActivePayment,
+    checkoutEnforcing,
   });
 };
 
@@ -89,7 +98,10 @@ async function handleRuleAction({ request }) {
   // just to look up a string for the toast message.
   const title = formData.get("title") || "Rule";
 
-  if (intent === "toggle") {
+  if (intent === "enableValidation") {
+    await ensureValidationActive(admin);
+    return json({ ok: true, toast: "CartRules is now enforced at checkout" });
+  } else if (intent === "toggle") {
     const nextStatus = formData.get("nextStatus");
     // Same Free-plan cap as rule creation (app.rules.new.jsx) — without this,
     // a Free shop could create paused rules and then activate them all here.
@@ -125,6 +137,9 @@ async function handleRuleAction({ request }) {
     // correctly reports "doesn't match" here too.
     const productId = formData.get("productId");
     const quantity = Number(formData.get("quantity")) || 0;
+    // Completes the Overview checklist's "Test your first rule" step. Best
+    // effort — a failed flag write shouldn't fail the test itself.
+    setSetupFlag(admin, "ruleTested", true).catch((error) => console.error("Failed to save setup flag", error));
     const discountApplied = formData.get("discountApplied") === "true";
 
     const [allRules, cache] = await Promise.all([listRules(admin), readRulesCache(admin)]);
@@ -133,6 +148,17 @@ async function handleRuleAction({ request }) {
 
     if (rule.status !== RULE_STATUS.ACTIVE) {
       return json({ test: { matched: false, reason: "This rule is paused, so it isn't enforced at checkout." } });
+    }
+
+    const validation = await getValidation(admin);
+    if (!validation?.enabled) {
+      return json({
+        test: {
+          matched: false,
+          reason:
+            "CartRules is turned off in Shopify (Settings → Checkout → Checkout rules), so no rule is enforced at checkout. Turn it on from the banner on this page.",
+        },
+      });
     }
 
     const cacheEntry = cache.rules.find((r) => r.id === id);
@@ -297,8 +323,10 @@ function RuleRow({ rule, index, navigate, onOpenTest }) {
 }
 
 export default function RulesList() {
-  const { rules, activeCount, freeLimit, isFreePlan } = useLoaderData();
+  const { rules, activeCount, freeLimit, isFreePlan, checkoutEnforcing } = useLoaderData();
   const navigate = useNavigate();
+  const validationFetcher = useFetcher();
+  useActionToast(validationFetcher);
   const [tab, setTab] = useState(0);
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -383,6 +411,23 @@ export default function RulesList() {
         <Text as="p" tone="subdued">
           {rules.length} total rule{rules.length === 1 ? "" : "s"} · {activeCount} active
         </Text>
+
+        {checkoutEnforcing === false && activeCount > 0 ? (
+          <Banner
+            tone="critical"
+            title="Your active rules aren't being enforced at checkout"
+            action={{
+              content: "Turn on at checkout",
+              loading: validationFetcher.state !== "idle",
+              onAction: () => validationFetcher.submit({ intent: "enableValidation" }, { method: "post" }),
+            }}
+          >
+            <p>
+              The CartRules checkout rule is off in Shopify (Settings → Checkout → Checkout rules), so customers can
+              check out without these limits applying.
+            </p>
+          </Banner>
+        ) : null}
 
         {isFreePlan && activeCount >= freeLimit ? (
           <Banner tone="warning" title="You've reached the Free plan's active rule limit">

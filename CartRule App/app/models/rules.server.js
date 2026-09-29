@@ -118,6 +118,123 @@ async function ensureRulesCacheMetafieldDefinition(admin, shopGid) {
   rulesCacheDefinitionEnsured.add(shopGid);
 }
 
+// Handle of the checkout Function extension (extensions/cartrules-validation
+// shopify.extension.toml `handle`).
+export const VALIDATION_FUNCTION_HANDLE = "cartrules-validation";
+
+/**
+ * Reads the CartRules checkout validation as Shopify has it — the source of
+ * truth for "is checkout enforcing rules right now". Returns null if the
+ * validation has never been created in this store.
+ */
+export async function getValidation(admin) {
+  const response = await admin.graphql(
+    `#graphql
+    query CartRulesValidations {
+      validations(first: 25) {
+        nodes {
+          id
+          enabled
+          shopifyFunction { id handle }
+        }
+      }
+    }`,
+  );
+  const json = await response.json();
+  if (json.errors?.length) {
+    throw new Error(`Could not read checkout validations: ${JSON.stringify(json.errors)}`);
+  }
+  const node = (json.data?.validations?.nodes ?? []).find(
+    (v) => v.shopifyFunction?.handle === VALIDATION_FUNCTION_HANDLE,
+  );
+  return node ? { id: node.id, enabled: node.enabled } : null;
+}
+
+/**
+ * Page-load status check used by the Overview and Rules pages. If there are
+ * active rules but the validation was NEVER created in this store (e.g. rules
+ * saved before this fix shipped, and the afterAuth hook hasn't re-run), create
+ * it now so those rules are enforced. A validation that exists but is
+ * disabled was turned off by the merchant in Shopify, so it's left alone and
+ * reported instead. Returns true/false for "enforcing at checkout", or null
+ * if the status couldn't be read (the page then skips the warning).
+ */
+export async function getCheckoutEnforcement(admin, activeRuleCount) {
+  try {
+    const validation = await getValidation(admin);
+    if (validation) return validation.enabled;
+    if (activeRuleCount > 0) {
+      await ensureValidationActive(admin);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error("Could not read or create checkout validation", error);
+    return null;
+  }
+}
+
+/**
+ * Deploying the Function only makes it AVAILABLE to a store — Shopify doesn't
+ * run it at checkout until a Validation record exists for it with
+ * `enabled: true` (Settings → Checkout → Checkout rules). Without this the
+ * rules_cache metafield is written correctly but nothing ever reads it, so
+ * rules aren't enforced (App Store review 2.1.4). Idempotent: creates the
+ * validation once, re-enables it if it was turned off, otherwise no-op.
+ */
+export async function ensureValidationActive(admin) {
+  const existing = await getValidation(admin);
+
+  if (existing?.enabled) return existing.id;
+
+  if (existing) {
+    const updateResponse = await admin.graphql(
+      `#graphql
+      mutation EnableCartRulesValidation($id: ID!, $validation: ValidationUpdateInput!) {
+        validationUpdate(id: $id, validation: $validation) {
+          validation { id enabled }
+          userErrors { field message code }
+        }
+      }`,
+      { variables: { id: existing.id, validation: { enable: true } } },
+    );
+    const updateJson = await updateResponse.json();
+    const errors = updateJson.errors ?? updateJson.data?.validationUpdate?.userErrors;
+    if (errors?.length || !updateJson.data?.validationUpdate) {
+      throw new Error(`Could not enable checkout validation: ${JSON.stringify(errors)}`);
+    }
+    return existing.id;
+  }
+
+  const createResponse = await admin.graphql(
+    `#graphql
+    mutation CreateCartRulesValidation($validation: ValidationCreateInput!) {
+      validationCreate(validation: $validation) {
+        validation { id enabled }
+        userErrors { field message code }
+      }
+    }`,
+    {
+      variables: {
+        validation: {
+          functionHandle: VALIDATION_FUNCTION_HANDLE,
+          title: "CartRules",
+          enable: true,
+          // A Function runtime error (e.g. timeout) should not block every
+          // checkout in the store — only real rule violations should.
+          blockOnFailure: false,
+        },
+      },
+    },
+  );
+  const createJson = await createResponse.json();
+  const errors = createJson.errors ?? createJson.data?.validationCreate?.userErrors;
+  if (errors?.length || !createJson.data?.validationCreate?.validation) {
+    throw new Error(`Could not create checkout validation: ${JSON.stringify(errors ?? createJson)}`);
+  }
+  return createJson.data.validationCreate.validation.id;
+}
+
 function fieldsToObject(fields) {
   const obj = {};
   for (const f of fields) obj[f.key] = f.value;
@@ -283,9 +400,8 @@ export async function deleteRule(admin, id) {
  * schema), by expanding them into concrete member product IDs. That means a
  * product added to a targeted collection/tag AFTER the rule was saved won't
  * be covered until the cache is rebuilt. We rebuild on every rule create/
- * update/status-change/delete; if that staleness window matters for a given
- * store, add a `products/update` + `collections/update` webhook that calls
- * syncRulesCache(admin) again. Not implemented in v1 — flagged here on purpose.
+ * update/status-change/delete, and on the products/* + collections/* webhooks
+ * (resyncIfCatalogChangeAffectsRules, app/routes/webhooks.catalog.jsx).
  */
 async function expandCollectionToProductIds(admin, collectionGid) {
   const productIds = [];
@@ -348,8 +464,12 @@ async function expandTagToProductIds(admin, tag) {
  * Rebuilds the `cartrules.rules_cache` shop metafield from every ACTIVE
  * metaobject rule. This is the JSON the Shopify Function reads at checkout —
  * see extensions/cartrules-validation/src/index.js.
+ *
+ * `activateValidation: false` is for background resyncs (product/collection
+ * webhooks): those refresh the data but must not turn the checkout rule back
+ * on if the merchant switched it off in Shopify's checkout settings.
  */
-export async function syncRulesCache(admin) {
+export async function syncRulesCache(admin, { activateValidation = true } = {}) {
   const shopGid = await getShopGid(admin);
   await ensureRulesCacheMetafieldDefinition(admin, shopGid);
   const all = await listRules(admin);
@@ -441,6 +561,69 @@ export async function syncRulesCache(admin) {
   if (errors?.length) {
     throw new Error(`Could not sync rules cache metafield: ${JSON.stringify(errors)}`);
   }
+
+  // The cache is only read if the checkout validation is live — make sure it
+  // is, so a saved active rule is actually enforced at checkout.
+  if (activateValidation && active.length > 0) {
+    await ensureValidationActive(admin);
+  }
+}
+
+/**
+ * Keeps TAG/COLLECTION rules in step with the catalog (App Store requirement
+ * 2.1.4). Those rules are expanded into product IDs at cache-build time (see
+ * expandCollectionToProductIds), so without this a product tagged or added to
+ * a targeted collection after the rule was saved would show as covered in the
+ * app but not be enforced at checkout. Called from the products/* and
+ * collections/update webhooks; only rebuilds when the change can affect an
+ * active rule, since products/update fires often.
+ */
+export async function resyncIfCatalogChangeAffectsRules(admin, { productId, productTags, collectionId }) {
+  const all = await listRules(admin);
+  const dynamic = all.filter(
+    (r) =>
+      r.status === RULE_STATUS.ACTIVE &&
+      (r.targetType === TARGET_TYPES.TAG || r.targetType === TARGET_TYPES.COLLECTION),
+  );
+  if (dynamic.length === 0) return false;
+
+  let affected = false;
+  if (collectionId) {
+    affected = dynamic.some((r) => r.targetType === TARGET_TYPES.COLLECTION && r.targetValue === collectionId);
+  }
+  if (!affected && productId) {
+    const tags = new Set((productTags ?? []).map((t) => t.trim().toLowerCase()).filter(Boolean));
+    const cache = await readRulesCache(admin);
+    const cachedIdsByRule = new Map(cache.rules.map((r) => [r.id, r.productIds ?? []]));
+    affected = dynamic.some(
+      (r) =>
+        // Currently covered (tag removed / left the collection / deleted) …
+        cachedIdsByRule.get(r.id)?.includes(productId) ||
+        // … or newly matches a tag rule.
+        (r.targetType === TARGET_TYPES.TAG && tags.has(String(r.targetValue).toLowerCase())),
+    );
+    const collectionRules = dynamic.filter((r) => r.targetType === TARGET_TYPES.COLLECTION);
+    for (const rule of collectionRules) {
+      if (affected) break;
+      affected = await productInCollection(admin, productId, rule.targetValue);
+    }
+  }
+  if (!affected) return false;
+
+  await syncRulesCache(admin, { activateValidation: false });
+  return true;
+}
+
+async function productInCollection(admin, productId, collectionId) {
+  const response = await admin.graphql(
+    `#graphql
+    query CartRulesProductInCollection($productId: ID!, $collectionId: ID!) {
+      product(id: $productId) { inCollection(id: $collectionId) }
+    }`,
+    { variables: { productId, collectionId } },
+  );
+  const json = await response.json();
+  return Boolean(json.data?.product?.inCollection);
 }
 
 // Not cached: this module is shared by every shop served by this process,
