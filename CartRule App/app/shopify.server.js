@@ -108,7 +108,25 @@ const shopify = shopifyApp({
 export default shopify;
 export const apiVersion = CURRENT_API_VERSION;
 export const addDocumentResponseHeaders = shopify.addDocumentResponseHeaders;
-export const authenticate = shopify.authenticate;
+// The installed @shopify/shopify-api's sanitizeHost() runs `new URL()` on the
+// base64-decoded `host` param BEFORE its own "invalid host → 400" check, so a
+// host that doesn't decode to a hostname (e.g. host=9995749999999999999) throws
+// a raw TypeError: Invalid URL — which Remix turns into a 500. App Store
+// review's automated cross-shop/tampered-param checks send exactly that, and
+// flagged 500s on /app and /app/billing on 2026-09-29. Reject it as the 400
+// the library intends instead.
+async function authenticateAdmin(request) {
+  try {
+    return await shopify.authenticate.admin(request);
+  } catch (error) {
+    if (error instanceof TypeError && error.code === "ERR_INVALID_URL") {
+      throw new Response("Invalid host parameter", { status: 400 });
+    }
+    throw error;
+  }
+}
+
+export const authenticate = { ...shopify.authenticate, admin: authenticateAdmin };
 export const unauthenticated = shopify.unauthenticated;
 export const login = shopify.login;
 export const registerWebhooks = shopify.registerWebhooks;
