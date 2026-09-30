@@ -42,21 +42,31 @@ function AccordionItem({ question, children }) {
   const [open, setOpen] = useState(false);
   return (
     <Box paddingBlock="200" borderBlockEndWidth="025" borderColor="border">
-      <Box
-        as="button"
+      <button
         type="button"
+        aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        width="100%"
-        padding="0"
-        background="bg-surface"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "var(--p-space-200)",
+          width: "100%",
+          padding: 0,
+          border: "none",
+          background: "none",
+          font: "inherit",
+          textAlign: "left",
+          cursor: "pointer",
+        }}
       >
-        <InlineStack align="space-between" blockAlign="center" wrap={false}>
-          <Text as="span" fontWeight="medium">
-            {question}
-          </Text>
+        <Text as="span" fontWeight="medium">
+          {question}
+        </Text>
+        <span style={{ flexShrink: 0 }}>
           <Icon source={open ? ChevronUpIcon : ChevronDownIcon} tone="subdued" />
-        </InlineStack>
-      </Box>
+        </span>
+      </button>
       {open ? (
         <Box paddingBlockStart="200">
           <Text as="p" tone="subdued">

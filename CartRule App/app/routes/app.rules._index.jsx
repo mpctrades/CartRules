@@ -19,9 +19,8 @@ import {
   BlockStack,
   Popover,
   ActionList,
-  Icon,
 } from "@shopify/polaris";
-import { MenuHorizontalIcon, CheckCircleIcon, AlertTriangleIcon } from "@shopify/polaris-icons";
+import { MenuHorizontalIcon } from "@shopify/polaris-icons";
 import { authenticate, BILLING_PLANS, FREE_PLAN_RULE_LIMIT } from "../shopify.server";
 import {
   listRules,
@@ -577,18 +576,12 @@ export default function RulesList() {
                   {testFetcher.data.test.error ? (
                     <Text as="p">{testFetcher.data.test.error}</Text>
                   ) : !testFetcher.data.test.matched ? (
-                    <InlineStack gap="150" blockAlign="center">
-                      <Icon source={AlertTriangleIcon} />
-                      <Text as="p">{testFetcher.data.test.reason}</Text>
-                    </InlineStack>
+                    <Text as="p">{testFetcher.data.test.reason}</Text>
                   ) : (
                     <BlockStack gap="150">
-                      <InlineStack gap="150" blockAlign="center">
-                        <Icon source={CheckCircleIcon} />
-                        <Text as="p" fontWeight="bold">
-                          Rule matched — {testFetcher.data.test.blocked ? "would be blocked" : "would be allowed"}
-                        </Text>
-                      </InlineStack>
+                      <Text as="p" fontWeight="bold">
+                        Rule matched — {testFetcher.data.test.blocked ? "would be blocked" : "would be allowed"}
+                      </Text>
                       {testFetcher.data.test.ruleType === RULE_TYPES.MAX_QUANTITY ? (
                         <Text as="p">
                           Maximum allowed: {testFetcher.data.test.maxAllowed} · Attempted: {testFetcher.data.test.attempted}
