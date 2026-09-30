@@ -1,4 +1,4 @@
-import { BlockStack, Icon, InlineGrid, InlineStack, Text } from "@shopify/polaris";
+import { BlockStack, Icon, InlineGrid, Text } from "@shopify/polaris";
 import { CheckCircleIcon } from "@shopify/polaris-icons";
 import { RULE_TYPES } from "../models/ruleConstants";
 import { BRAND_ORANGE, BRAND_ORANGE_SOFT } from "./brand";
@@ -29,6 +29,7 @@ export default function RuleTypeCards({ value, onChange }) {
           <button
             key={option.value}
             type="button"
+            aria-pressed={selected}
             onClick={() => onChange(option.value)}
             style={{
               width: "100%",
@@ -42,12 +43,16 @@ export default function RuleTypeCards({ value, onChange }) {
             }}
           >
             <BlockStack gap="100">
-              <InlineStack align="space-between" blockAlign="center" wrap={false}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                 <Text as="h3" variant="headingSm">
                   {option.title}
                 </Text>
-                {selected ? <Icon source={CheckCircleIcon} tone="success" /> : null}
-              </InlineStack>
+                {selected ? (
+                  <span style={{ flexShrink: 0 }}>
+                    <Icon source={CheckCircleIcon} tone="success" />
+                  </span>
+                ) : null}
+              </div>
               <Text as="p" tone="subdued" alignment="start">
                 {option.description}
               </Text>

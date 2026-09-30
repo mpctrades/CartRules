@@ -225,7 +225,7 @@ export default function Billing() {
                         {plan.key}
                       </Text>
                       <InlineStack gap="100">
-                        {featured ? <BrandPill>Most popular</BrandPill> : null}
+                        {featured ? <BrandPill>Recommended</BrandPill> : null}
                         {currentPlan === plan.key ? <Badge tone="success">Current plan</Badge> : null}
                       </InlineStack>
                     </InlineStack>
