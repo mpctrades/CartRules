@@ -4,7 +4,7 @@ import {
   BillingInterval,
   shopifyApp,
 } from "@shopify/shopify-app-remix/server";
-import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
+import { RefreshingPrismaSessionStorage } from "./session-storage.server";
 import prisma from "./db.server";
 import { ensureValidationActive } from "./models/rules.server";
 
@@ -35,7 +35,7 @@ const shopify = shopifyApp({
   scopes: process.env.SCOPES?.split(","),
   appUrl: process.env.SHOPIFY_APP_URL || "",
   authPathPrefix: "/auth",
-  sessionStorage: new PrismaSessionStorage(prisma),
+  sessionStorage: new RefreshingPrismaSessionStorage(prisma),
   distribution: AppDistribution.AppStore,
   // Each plan must be a one-time plan OR a subscription plan with `lineItems`
   // — the installed @shopify/shopify-app-remix rejects a flat
