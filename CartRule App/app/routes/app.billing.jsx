@@ -6,6 +6,7 @@ import { countActiveRules } from "../models/rules.server";
 import { getMonthlyEventCount } from "../models/events.server";
 import { isDevelopmentStore } from "../models/shop.server";
 import { Eyebrow, BrandPill, BRAND_ORANGE } from "../components/brand";
+import { ORDER_ACTIVITY_ENABLED } from "../utils/features";
 
 export const loader = async ({ request }) => {
   const { admin, session, billing } = await authenticate.admin(request);
@@ -19,7 +20,7 @@ export const loader = async ({ request }) => {
   const currentSubscriptionId = hasActivePayment ? appSubscriptions[0]?.id : null;
   const [activeRules, monthlyEvents] = await Promise.all([
     countActiveRules(admin),
-    getMonthlyEventCount(session.shop),
+    ORDER_ACTIVITY_ENABLED ? getMonthlyEventCount(session.shop) : 0,
   ]);
   return json({
     currentPlan,
@@ -134,6 +135,8 @@ const PLAN_COPY = [
   },
 ];
 
+const PLAN_RANK = { Free: 0, Growth: 1, Pro: 2 };
+
 export default function Billing() {
   const { currentPlan, currentSubscriptionId, activeRules, freeLimit, isFreePlan, monthlyEvents } =
     useLoaderData();
@@ -149,7 +152,7 @@ export default function Billing() {
         {actionData?.billingError ? <Banner tone="critical">{actionData.billingError}</Banner> : null}
         <Card>
           <BlockStack gap="400">
-            <InlineGrid columns={{ xs: 1, sm: 3 }} gap="400">
+            <InlineGrid columns={{ xs: 1, sm: ORDER_ACTIVITY_ENABLED ? 3 : 2 }} gap="400">
               <BlockStack gap="050">
                 <Text as="span" tone="subdued">
                   Current plan
@@ -166,14 +169,16 @@ export default function Billing() {
                   {activeRules} / {isFreePlan ? freeLimit : "Unlimited"}
                 </Text>
               </BlockStack>
-              <BlockStack gap="050">
-                <Text as="span" tone="subdued">
-                  Usage this month
-                </Text>
-                <Text as="p" variant="headingLg">
-                  {monthlyEvents} rule event{monthlyEvents === 1 ? "" : "s"}
-                </Text>
-              </BlockStack>
+              {ORDER_ACTIVITY_ENABLED ? (
+                <BlockStack gap="050">
+                  <Text as="span" tone="subdued">
+                    Usage this month
+                  </Text>
+                  <Text as="p" variant="headingLg">
+                    {monthlyEvents} rule event{monthlyEvents === 1 ? "" : "s"}
+                  </Text>
+                </BlockStack>
+              ) : null}
             </InlineGrid>
             {isFreePlan ? (
               <div
@@ -237,7 +242,7 @@ export default function Billing() {
                         variant="primary"
                         onClick={() => submit({ plan: plan.key }, { method: "post" })}
                       >
-                        Upgrade to {plan.key}
+                        {PLAN_RANK[plan.key] > PLAN_RANK[currentPlan] ? "Upgrade" : "Switch"} to {plan.key}
                       </Button>
                     ) : null}
                     {plan.key === "Free" && !isFreePlan ? (

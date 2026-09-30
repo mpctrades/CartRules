@@ -36,6 +36,7 @@ export const action = async ({ request }) => {
     });
     await syncRulesCache(admin);
   } catch (error) {
+    if (error instanceof Response) throw error;
     console.error("Failed to save settings", error);
     return json({ ok: false, toast: "We couldn't save your settings. Please try again.", toastError: true });
   }

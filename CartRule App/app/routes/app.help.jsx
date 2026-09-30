@@ -79,7 +79,7 @@ const FAQ = [
   },
   {
     q: "Can I block discount codes for certain products?",
-    a: "Yes. Create a Block Discounts rule and choose which products, collection, or tag it applies to.",
+    a: "Yes. Create a Block Discounts rule and choose which products, collection, or tag it applies to. If a customer applies a discount code to one of those products, checkout shows your message and they remove the code to continue. The rule applies to every kind of discount, including automatic discounts, so exclude these products from any automatic discounts you run.",
   },
   {
     q: "Can I pause a rule?",
@@ -114,7 +114,11 @@ const TROUBLESHOOTING = [
   },
   {
     q: "Discount is still applying",
-    a: "Check: the Block Discounts rule is Active; the product actually matches the rule's target; the discount is a code-based discount (automatic discounts aren't distinguished from code discounts in v1 — see the app's README for this documented limitation); the rule was saved after your last change.",
+    a: "Check: the Block Discounts rule is Active; the product actually matches the rule's target; CartRules is on at checkout (Settings → Checkout → Checkout rules); the rule was saved after your last change.",
+  },
+  {
+    q: "Customers can't check out because of an automatic discount",
+    a: "Block Discounts rules apply to every discount on the targeted products, including automatic discounts, which customers can't remove themselves. Exclude the targeted products from your automatic discounts in Shopify (Discounts → your discount → Applies to), or pause the rule while the promotion runs.",
   },
 ];
 

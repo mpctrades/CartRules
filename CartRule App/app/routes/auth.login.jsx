@@ -1,77 +1,55 @@
-import { useState } from "react";
 import { json } from "@remix-run/node";
-import { Form, useActionData, useLoaderData } from "@remix-run/react";
-import {
-  AppProvider as PolarisAppProvider,
-  Button,
-  Card,
-  FormLayout,
-  Page,
-  Text,
-  TextField,
-} from "@shopify/polaris";
+import { AppProvider as PolarisAppProvider, Card, Page, Text, BlockStack, Link } from "@shopify/polaris";
 import polarisTranslations from "@shopify/polaris/locales/en.json";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
-import { LoginErrorType } from "@shopify/shopify-app-remix/server";
+import { useLoaderData } from "@remix-run/react";
 import { login } from "../shopify.server";
 
 export const links = () => [{ rel: "stylesheet", href: polarisStyles }];
-
-function loginErrorMessage(loginErrors) {
-  if (loginErrors?.shop === LoginErrorType.MissingShop) {
-    return { shop: "Please enter your shop domain to log in" };
-  }
-  if (loginErrors?.shop === LoginErrorType.InvalidShop) {
-    return { shop: "Please enter a valid shop domain to log in" };
-  }
-  return {};
-}
 
 // The embedded install flow never lands here — Shopify redirects straight
 // through OAuth (see app/routes/_index.jsx and auth.$.jsx). This route only
 // exists because @shopify/shopify-app-remix requires a route at the
 // configured `authPathPrefix` + "/login" that calls `login()` (not
-// `authenticate.admin()`), for the rare manual/non-embedded entry point —
-// without it the library refuses every request with "Detected call to
-// shopify.authenticate.admin() from configured login path".
+// `authenticate.admin()`) — without it the library refuses every request
+// with "Detected call to shopify.authenticate.admin() from configured login
+// path". `login()` still redirects straight into OAuth when a `shop` param
+// is present.
+//
+// Deliberately no shop-domain input: App Store requirement 2.3.1 prohibits
+// asking merchants to type their myshopify.com domain anywhere in the install
+// or configuration flow, and /app redirects here whenever a request arrives
+// without a session (e.g. the app URL opened outside the Shopify admin).
 export const loader = async ({ request }) => {
-  const errors = loginErrorMessage(await login(request));
-  return json({ errors, polarisTranslations });
+  await login(request);
+  return json({ polarisTranslations });
 };
 
 export const action = async ({ request }) => {
-  const errors = loginErrorMessage(await login(request));
-  return json({ errors });
+  await login(request);
+  return json({});
 };
 
 export default function Auth() {
-  const { errors, polarisTranslations } = useLoaderData();
-  const actionData = useActionData();
-  const [shop, setShop] = useState("");
-  const shownErrors = actionData?.errors ?? errors;
+  const { polarisTranslations } = useLoaderData();
 
   return (
     <PolarisAppProvider i18n={polarisTranslations}>
-      <Page>
+      <Page narrowWidth>
         <Card>
-          <Form method="post">
-            <FormLayout>
-              <Text variant="headingMd" as="h2">
-                Log in
-              </Text>
-              <TextField
-                type="text"
-                name="shop"
-                label="Shop domain"
-                helpText="example.myshopify.com"
-                value={shop}
-                onChange={setShop}
-                autoComplete="on"
-                error={shownErrors.shop}
-              />
-              <Button submit>Log in</Button>
-            </FormLayout>
-          </Form>
+          <BlockStack gap="200">
+            <Text variant="headingMd" as="h1">
+              Open CartRules from your Shopify admin
+            </Text>
+            <Text as="p" tone="subdued">
+              CartRules runs inside the Shopify admin. Go to Apps → CartRules in your store&apos;s admin, or install
+              it from the{" "}
+              <Link url="https://apps.shopify.com" target="_top">
+                Shopify App Store
+              </Link>
+              .
+            </Text>
+          </BlockStack>
         </Card>
       </Page>
     </PolarisAppProvider>

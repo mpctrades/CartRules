@@ -16,7 +16,7 @@ import { authenticate, BILLING_PLANS, FREE_PLAN_RULE_LIMIT } from "../shopify.se
 import { createRule, countActiveRules } from "../models/rules.server";
 import { getSettings } from "../models/settings.server";
 import { hasPaidPlan } from "../models/shop.server";
-import { RULE_TYPES, TARGET_TYPES, RULE_STATUS } from "../models/ruleConstants";
+import { RULE_TYPES, TARGET_TYPES, RULE_STATUS, isValidMaxQuantity } from "../models/ruleConstants";
 import RuleTypeCards from "../components/RuleTypeCards";
 import { redirectWithToast } from "../utils/toastRedirect.server";
 import { Eyebrow, StepBadge } from "../components/brand";
@@ -219,6 +219,9 @@ export default function NewRule() {
     runLookup(targetType, picked.id);
   };
 
+  const maxQuantityError =
+    ruleType === RULE_TYPES.MAX_QUANTITY && !isValidMaxQuantity(maxQuantity) ? "Enter a whole number of 1 or more." : undefined;
+
   const save = () => {
     saveFetcher.submit(
       {
@@ -260,6 +263,7 @@ export default function NewRule() {
                 min={1}
                 value={maxQuantity}
                 onChange={setMaxQuantity}
+                error={maxQuantityError}
                 autoComplete="off"
               />
             ) : null}
@@ -341,7 +345,7 @@ export default function NewRule() {
               <Button
                 variant="primary"
                 loading={saveFetcher.state !== "idle"}
-                disabled={!targetValue}
+                disabled={!targetValue || Boolean(maxQuantityError)}
                 onClick={save}
               >
                 Save & activate

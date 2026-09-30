@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { json } from "@remix-run/node";
-import { useLoaderData, useNavigate, useFetcher } from "@remix-run/react";
+import { Link, useLoaderData, useNavigate, useFetcher } from "@remix-run/react";
 import {
   Page,
   Card,
@@ -40,6 +40,7 @@ import { hasPaidPlan, isDevelopmentStore } from "../models/shop.server";
 import { RULE_TYPES, TARGET_TYPES, RULE_STATUS } from "../models/ruleConstants";
 import { useActionToast } from "../utils/useActionToast";
 import { Eyebrow } from "../components/brand";
+import { ORDER_ACTIVITY_ENABLED } from "../utils/features";
 
 // F4: "Rules list with active / paused status" — one screen to see and
 // control everything, matching brief mockup Screen 1 (and the "Rules" page
@@ -50,7 +51,7 @@ export const loader = async ({ request }) => {
   const [rules, cache, triggerCounts, isTest] = await Promise.all([
     listRules(admin),
     readRulesCache(admin),
-    getTriggerCountsByRule(session.shop),
+    ORDER_ACTIVITY_ENABLED ? getTriggerCountsByRule(session.shop) : new Map(),
     isDevelopmentStore(admin, session.shop),
   ]);
   const { hasActivePayment } = await billing.check({ plans: Object.values(BILLING_PLANS), isTest });
@@ -247,7 +248,9 @@ function RuleActionsMenu({ rule, onEdit, onDuplicate, onViewActivity, onTest, on
         items={[
           { content: "Edit", onAction: () => { setOpen(false); onEdit(); } },
           { content: "Duplicate", onAction: () => { setOpen(false); onDuplicate(); } },
-          { content: "View activity", onAction: () => { setOpen(false); onViewActivity(); } },
+          ...(ORDER_ACTIVITY_ENABLED
+            ? [{ content: "View activity", onAction: () => { setOpen(false); onViewActivity(); } }]
+            : []),
           { content: "Test rule", onAction: () => { setOpen(false); onTest(); } },
           {
             content: rule.status === RULE_STATUS.ACTIVE ? "Pause" : "Activate",
@@ -270,6 +273,7 @@ function RuleActionsMenu({ rule, onEdit, onDuplicate, onViewActivity, onTest, on
 function RuleRow({ rule, index, navigate, onOpenTest }) {
   const fetcher = useFetcher();
   const busy = fetcher.state !== "idle";
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   useActionToast(fetcher);
 
   const submitAction = (intent, extra = {}) => {
@@ -294,7 +298,7 @@ function RuleRow({ rule, index, navigate, onOpenTest }) {
       </IndexTable.Cell>
       <IndexTable.Cell>{describeType(rule)}</IndexTable.Cell>
       <IndexTable.Cell>{describeTarget(rule)}</IndexTable.Cell>
-      <IndexTable.Cell>{rule.triggerCount}</IndexTable.Cell>
+      {ORDER_ACTIVITY_ENABLED ? <IndexTable.Cell>{rule.triggerCount}</IndexTable.Cell> : null}
       <IndexTable.Cell>
         <Badge tone={rule.status === RULE_STATUS.ACTIVE ? "success" : undefined}>
           {rule.status === RULE_STATUS.ACTIVE ? "Active" : "Paused"}
@@ -314,8 +318,31 @@ function RuleRow({ rule, index, navigate, onOpenTest }) {
                 nextStatus: rule.status === RULE_STATUS.ACTIVE ? RULE_STATUS.PAUSED : RULE_STATUS.ACTIVE,
               })
             }
-            onDelete={() => submitAction("delete")}
+            onDelete={() => setConfirmingDelete(true)}
           />
+          {confirmingDelete ? (
+            <Modal
+              open
+              onClose={() => setConfirmingDelete(false)}
+              title={`Delete "${rule.title || describeType(rule)}"?`}
+              primaryAction={{
+                content: "Delete rule",
+                destructive: true,
+                onAction: () => {
+                  setConfirmingDelete(false);
+                  submitAction("delete");
+                },
+              }}
+              secondaryActions={[{ content: "Cancel", onAction: () => setConfirmingDelete(false) }]}
+            >
+              <Modal.Section>
+                <Text as="p">
+                  This rule stops applying at checkout immediately. This can&apos;t be undone — to stop it temporarily,
+                  pause it instead.
+                </Text>
+              </Modal.Section>
+            </Modal>
+          ) : null}
         </div>
       </IndexTable.Cell>
     </IndexTable.Row>
@@ -433,7 +460,7 @@ export default function RulesList() {
           <Banner tone="warning" title="You've reached the Free plan's active rule limit">
             <p>
               The Free plan allows {freeLimit} active rules. Pause a rule or{" "}
-              <a href="/app/billing">upgrade to Growth or Pro</a> for unlimited rules.
+              <Link to="/app/billing">upgrade to Growth or Pro</Link> for unlimited rules.
             </p>
           </Banner>
         ) : null}
@@ -484,7 +511,7 @@ export default function RulesList() {
                 { title: "Rule" },
                 { title: "Type" },
                 { title: "Scope" },
-                { title: "Activity" },
+                ...(ORDER_ACTIVITY_ENABLED ? [{ title: "Activity" }] : []),
                 { title: "Status" },
                 { title: "" },
               ]}

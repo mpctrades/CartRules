@@ -13,7 +13,7 @@ import {
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { listRules, updateRule } from "../models/rules.server";
-import { RULE_TYPES, TARGET_TYPES } from "../models/ruleConstants";
+import { RULE_TYPES, TARGET_TYPES, isValidMaxQuantity } from "../models/ruleConstants";
 import RuleTypeCards from "../components/RuleTypeCards";
 import { redirectWithToast } from "../utils/toastRedirect.server";
 import { Eyebrow } from "../components/brand";
@@ -33,18 +33,26 @@ export const action = async ({ request, params }) => {
   const formData = await request.formData();
   const gid = decodeURIComponent(params.id);
 
-  const title = formData.get("title");
+  let title;
   try {
+    // Title, target and status come from the stored rule, not the form: the
+    // edit screen can't change them, and trusting a posted `status` would let
+    // a crafted request activate a rule past the Free plan's active-rule cap
+    // (only the Rules page toggle checks that cap).
+    const existing = (await listRules(admin)).find((r) => r.id === gid);
+    if (!existing) return json({ ok: false, error: "This rule no longer exists." }, { status: 404 });
+    title = existing.title;
     await updateRule(admin, gid, {
-      title,
+      title: existing.title,
       ruleType: formData.get("ruleType"),
-      targetType: formData.get("targetType"),
-      targetValue: formData.get("targetValue"),
+      targetType: existing.targetType,
+      targetValue: existing.targetValue,
       maxQuantity: formData.get("maxQuantity") ? Number(formData.get("maxQuantity")) : null,
       message: formData.get("message"),
-      status: formData.get("status"),
+      status: existing.status,
     });
   } catch (error) {
+    if (error instanceof Response) throw error;
     console.error("Failed to update rule", { id: gid, error });
     return json({ ok: false, error: "We couldn't save your changes. Please try again." });
   }
@@ -62,19 +70,11 @@ export default function EditRule() {
   const [maxQuantity, setMaxQuantity] = useState(String(rule.maxQuantity ?? 1));
   const [message, setMessage] = useState(rule.message);
 
+  const maxQuantityError =
+    ruleType === RULE_TYPES.MAX_QUANTITY && !isValidMaxQuantity(maxQuantity) ? "Enter a whole number of 1 or more." : undefined;
+
   const save = () => {
-    fetcher.submit(
-      {
-        title: rule.title,
-        ruleType,
-        targetType,
-        targetValue,
-        maxQuantity,
-        message,
-        status: rule.status,
-      },
-      { method: "post" },
-    );
+    fetcher.submit({ ruleType, maxQuantity, message }, { method: "post" });
   };
 
   return (
@@ -94,6 +94,7 @@ export default function EditRule() {
                 min={1}
                 value={maxQuantity}
                 onChange={setMaxQuantity}
+                error={maxQuantityError}
                 autoComplete="off"
               />
             ) : null}
@@ -137,7 +138,12 @@ export default function EditRule() {
               autoComplete="off"
             />
             {fetcher.data?.ok === false ? <Banner tone="critical">{fetcher.data.error}</Banner> : null}
-            <Button variant="primary" loading={fetcher.state !== "idle"} onClick={save}>
+            <Button
+              variant="primary"
+              loading={fetcher.state !== "idle"}
+              disabled={Boolean(maxQuantityError)}
+              onClick={save}
+            >
               Save changes
             </Button>
           </BlockStack>

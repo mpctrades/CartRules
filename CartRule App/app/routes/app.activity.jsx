@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { json } from "@remix-run/node";
+import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useNavigate, useSearchParams } from "@remix-run/react";
 import { Page, Card, BlockStack, InlineStack, Text, Select, Box, EmptyState, TextField, Button } from "@shopify/polaris";
 import { AlertTriangleIcon, CartDiscountIcon } from "@shopify/polaris-icons";
@@ -7,6 +7,7 @@ import { authenticate } from "../shopify.server";
 import { getActivityFeed } from "../models/events.server";
 import { listRules } from "../models/rules.server";
 import { Eyebrow, IconChip } from "../components/brand";
+import { ORDER_ACTIVITY_ENABLED } from "../utils/features";
 
 function eventIcon(ruleType) {
   return ruleType === "max_quantity"
@@ -31,6 +32,8 @@ const RULE_TYPE_FILTERS = [
 // first. See app/models/events.server.js for what's recorded and why.
 export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
+  // No order activity is recorded yet — see app/utils/features.js.
+  if (!ORDER_ACTIVITY_ENABLED) throw redirect("/app/rules");
   const url = new URL(request.url);
   const period = url.searchParams.get("period") ?? "30";
   const ruleType = url.searchParams.get("type") ?? "all";
