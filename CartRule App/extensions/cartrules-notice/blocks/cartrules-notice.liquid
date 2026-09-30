@@ -7,7 +7,7 @@
   `ensureRulesCacheMetafieldDefinition` sets up.
 {% endcomment %}
 
-{% assign cache = shop.metafields.cartrules.rules_cache %}
+{% assign cache = shop.metafields.cartrules.rules_cache.value %}
 {% assign rendered_notice = false %}
 {% if cache and cache.enabled != false and cache.productNoticesEnabled != false %}
   {% assign product_gid_suffix = product.id | append: '' %}
