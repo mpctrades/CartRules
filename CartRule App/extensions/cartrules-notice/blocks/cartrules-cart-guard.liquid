@@ -8,7 +8,7 @@
   in the message box below. The checkout Function stays the real enforcement.
 {% endcomment %}
 
-{% assign cache = shop.metafields.cartrules.rules_cache %}
+{% assign cache = shop.metafields.cartrules.rules_cache.value %}
 <script type="application/json" id="cartrules-rules-data">
   {% if cache and cache.enabled != false and cache.cartNoticesEnabled != false %}{{ cache | json }}{% else %}{"rules":[]}{% endif %}
 </script>
