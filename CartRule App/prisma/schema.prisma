@@ -29,6 +29,10 @@ model Session {
   locale        String?
   collaborator  Boolean?  @default(false)
   emailVerified Boolean?  @default(false)
+  // Expiring offline tokens (future.expiringOfflineAccessTokens) — see
+  // app/session-storage.server.js.
+  refreshToken        String?
+  refreshTokenExpires DateTime?
 }
 
 // One row per rule that actually fired on a real order line, recorded from
