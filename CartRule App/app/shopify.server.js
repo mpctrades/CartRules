@@ -115,6 +115,11 @@ export const addDocumentResponseHeaders = shopify.addDocumentResponseHeaders;
 // review's automated cross-shop/tampered-param checks send exactly that, and
 // flagged 500s on /app and /app/billing on 2026-09-29. Reject it as the 400
 // the library intends instead.
+//
+// The same checks also send a valid-looking session token for a shop that
+// never installed the app. Token exchange then fails and the library answers
+// with its own bare 500 Response — reject that (and any other stray error)
+// as 401 rather than letting it surface as a server error.
 async function authenticateAdmin(request) {
   try {
     return await shopify.authenticate.admin(request);
@@ -122,7 +127,12 @@ async function authenticateAdmin(request) {
     if (error instanceof TypeError && error.code === "ERR_INVALID_URL") {
       throw new Response("Invalid host parameter", { status: 400 });
     }
-    throw error;
+    if (error instanceof Response && error.status < 500) throw error;
+    console.warn("Rejected admin request", {
+      shop: new URL(request.url).searchParams.get("shop"),
+      error: error instanceof Response ? `library ${error.status}` : error?.message ?? String(error),
+    });
+    throw new Response("Unauthorized", { status: 401 });
   }
 }
 
