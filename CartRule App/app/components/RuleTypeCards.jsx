@@ -10,7 +10,8 @@ const OPTIONS = [
   {
     value: RULE_TYPES.NO_DISCOUNT,
     title: "Block discounts",
-    description: "Prevent discount codes from applying to selected products.",
+    description:
+      "Customers can't check out while a discount is applied to selected products. This includes automatic discounts, so exclude these products from your automatic discounts.",
   },
   {
     value: RULE_TYPES.MAX_QUANTITY,

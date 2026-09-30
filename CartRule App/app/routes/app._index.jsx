@@ -26,6 +26,14 @@ import { RULE_STATUS } from "../models/ruleConstants";
 import { useFlashToast } from "../utils/useFlashToast";
 import { useActionToast } from "../utils/useActionToast";
 import { Eyebrow, IconChip, BRAND_ORANGE } from "../components/brand";
+import { ORDER_ACTIVITY_ENABLED } from "../utils/features";
+
+const NO_KPIS = {
+  triggers: { value: 0, changePct: 0 },
+  discountsBlocked: { value: 0, changePct: 0 },
+  quantityViolations: { value: 0, changePct: 0 },
+  checkoutsProtected: { value: 0, changePct: 0 },
+};
 
 const PERIODS = [
   { label: "Last 7 days", value: "7" },
@@ -50,10 +58,12 @@ export const loader = async ({ request }) => {
 
   const [rules, kpis, series, recentActivity, hasEvents, setupFlags, settings] = await Promise.all([
     listRules(admin),
-    getKpis(session.shop, days),
-    getActivitySeries(session.shop, days, chartType === "all" ? null : chartType),
-    getActivityFeed(session.shop, { limit: 5 }),
-    hasAnyEvent(session.shop),
+    // Activity data only exists once the orders/create webhook is live —
+    // see app/utils/features.js.
+    ORDER_ACTIVITY_ENABLED ? getKpis(session.shop, days) : NO_KPIS,
+    ORDER_ACTIVITY_ENABLED ? getActivitySeries(session.shop, days, chartType === "all" ? null : chartType) : [],
+    ORDER_ACTIVITY_ENABLED ? getActivityFeed(session.shop, { limit: 5 }) : [],
+    ORDER_ACTIVITY_ENABLED ? hasAnyEvent(session.shop) : false,
     getSetupFlags(admin),
     getSettings(admin),
   ]);
@@ -405,102 +415,108 @@ export default function Dashboard() {
           </Banner>
         ) : null}
 
-        <InlineGrid columns={{ xs: 1, sm: 2, md: 4 }} gap="400">
-          <KpiCard icon={ChartLineIcon} label="Rule triggers" kpi={kpis.triggers} tone="info" />
-          <KpiCard icon={CartDiscountIcon} label="Discounts blocked" kpi={kpis.discountsBlocked} tone="magic" />
-          <KpiCard icon={AlertTriangleIcon} label="Quantity violations" kpi={kpis.quantityViolations} tone="caution" />
-          <KpiCard icon={ShieldCheckMarkIcon} label="Protected checkouts" kpi={kpis.checkoutsProtected} tone="success" />
-        </InlineGrid>
+        {ORDER_ACTIVITY_ENABLED ? (
+          <>
+            <InlineGrid columns={{ xs: 1, sm: 2, md: 4 }} gap="400">
+              <KpiCard icon={ChartLineIcon} label="Rule triggers" kpi={kpis.triggers} tone="info" />
+              <KpiCard icon={CartDiscountIcon} label="Discounts blocked" kpi={kpis.discountsBlocked} tone="magic" />
+              <KpiCard icon={AlertTriangleIcon} label="Quantity violations" kpi={kpis.quantityViolations} tone="caution" />
+              <KpiCard icon={ShieldCheckMarkIcon} label="Protected checkouts" kpi={kpis.checkoutsProtected} tone="success" />
+            </InlineGrid>
 
-        <Card>
-          <BlockStack gap="300">
-            <InlineStack align="space-between" blockAlign="center">
-              <Text as="h2" variant="headingMd">
-                Rule activity
-              </Text>
-              <InlineStack gap="200">
-                <div style={{ minWidth: 130 }}>
-                  <Select
-                    label="Type"
-                    labelHidden
-                    options={CHART_TYPE_FILTERS}
-                    value={chartType}
-                    onChange={(v) => setParam("type", v)}
-                  />
-                </div>
-                <div style={{ minWidth: 150 }}>
-                  <Select
-                    label="Period"
-                    labelHidden
-                    options={PERIODS}
-                    value={String(days)}
-                    onChange={(v) => setParam("period", v)}
-                  />
-                </div>
-              </InlineStack>
-            </InlineStack>
-            {noChartData ? (
-              <BlockStack gap="200">
-                <Text as="p" fontWeight="medium">
-                  No activity yet
-                </Text>
-                <Text as="p" tone="subdued">
-                  Once customers interact with an active rule, you'll see rule activity here.
-                </Text>
-                <InlineStack>
-                  <Button onClick={() => navigate("/app/rules/new")}>Create a rule</Button>
+            <Card>
+              <BlockStack gap="300">
+                <InlineStack align="space-between" blockAlign="center">
+                  <Text as="h2" variant="headingMd">
+                    Rule activity
+                  </Text>
+                  <InlineStack gap="200">
+                    <div style={{ minWidth: 130 }}>
+                      <Select
+                        label="Type"
+                        labelHidden
+                        options={CHART_TYPE_FILTERS}
+                        value={chartType}
+                        onChange={(v) => setParam("type", v)}
+                      />
+                    </div>
+                    <div style={{ minWidth: 150 }}>
+                      <Select
+                        label="Period"
+                        labelHidden
+                        options={PERIODS}
+                        value={String(days)}
+                        onChange={(v) => setParam("period", v)}
+                      />
+                    </div>
+                  </InlineStack>
                 </InlineStack>
+                {noChartData ? (
+                  <BlockStack gap="200">
+                    <Text as="p" fontWeight="medium">
+                      No activity yet
+                    </Text>
+                    <Text as="p" tone="subdued">
+                      Once customers interact with an active rule, you'll see rule activity here.
+                    </Text>
+                    <InlineStack>
+                      <Button onClick={() => navigate("/app/rules/new")}>Create a rule</Button>
+                    </InlineStack>
+                  </BlockStack>
+                ) : (
+                  <ActivityChart series={series} />
+                )}
               </BlockStack>
-            ) : (
-              <ActivityChart series={series} />
-            )}
-          </BlockStack>
-        </Card>
+            </Card>
+          </>
+        ) : null}
 
         <SetupChecklist checklist={checklist} shop={shop} navigate={navigate} submit={submit} />
 
-        <Card>
-          <BlockStack gap="300">
-            <InlineStack align="space-between" blockAlign="center">
-              <Text as="h2" variant="headingMd">
-                Recent activity
-              </Text>
-              <Button variant="plain" onClick={() => navigate("/app/activity")}>
-                View all
-              </Button>
-            </InlineStack>
-            {recentActivity.length === 0 ? (
-              <Text as="p" tone="subdued">
-                No rule activity yet. Activity will appear here after shoppers interact with your rules.
-              </Text>
-            ) : (
-              <BlockStack gap="300">
-                {recentActivity.map((event) => {
-                  const { icon, tone } = eventIcon(event.ruleType);
-                  return (
-                    <Box key={event.id} paddingBlockEnd="200" borderBlockEndWidth="025" borderColor="border">
-                      <InlineStack gap="200" wrap={false}>
-                        <IconChip icon={icon} tone={tone} size={28} />
-                        <BlockStack gap="050">
-                          <Text as="span" tone="subdued" variant="bodySm">
-                            {relativeTime(event.createdAt)}
-                          </Text>
-                          <Text as="span" fontWeight="bold">
-                            {event.ruleTitle}
-                          </Text>
-                          <Text as="span" tone="subdued">
-                            {event.ruleType === "max_quantity" ? "Quantity violation" : "Discount blocked"}
-                            {event.productTitle ? ` · ${event.productTitle}` : ""} · {event.detail}
-                          </Text>
-                        </BlockStack>
-                      </InlineStack>
-                    </Box>
-                  );
-                })}
-              </BlockStack>
-            )}
-          </BlockStack>
-        </Card>
+        {ORDER_ACTIVITY_ENABLED ? (
+          <Card>
+            <BlockStack gap="300">
+              <InlineStack align="space-between" blockAlign="center">
+                <Text as="h2" variant="headingMd">
+                  Recent activity
+                </Text>
+                <Button variant="plain" onClick={() => navigate("/app/activity")}>
+                  View all
+                </Button>
+              </InlineStack>
+              {recentActivity.length === 0 ? (
+                <Text as="p" tone="subdued">
+                  No rule activity yet. Activity will appear here after shoppers interact with your rules.
+                </Text>
+              ) : (
+                <BlockStack gap="300">
+                  {recentActivity.map((event) => {
+                    const { icon, tone } = eventIcon(event.ruleType);
+                    return (
+                      <Box key={event.id} paddingBlockEnd="200" borderBlockEndWidth="025" borderColor="border">
+                        <InlineStack gap="200" wrap={false}>
+                          <IconChip icon={icon} tone={tone} size={28} />
+                          <BlockStack gap="050">
+                            <Text as="span" tone="subdued" variant="bodySm">
+                              {relativeTime(event.createdAt)}
+                            </Text>
+                            <Text as="span" fontWeight="bold">
+                              {event.ruleTitle}
+                            </Text>
+                            <Text as="span" tone="subdued">
+                              {event.ruleType === "max_quantity" ? "Quantity violation" : "Discount blocked"}
+                              {event.productTitle ? ` · ${event.productTitle}` : ""} · {event.detail}
+                            </Text>
+                          </BlockStack>
+                        </InlineStack>
+                      </Box>
+                    );
+                  })}
+                </BlockStack>
+              )}
+            </BlockStack>
+          </Card>
+        ) : null}
       </BlockStack>
     </Page>
   );

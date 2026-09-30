@@ -14,6 +14,12 @@ export const TARGET_TYPES = {
   TAG: "tag",
 };
 
+/** Max-quantity form input: a whole number of 1 or more. */
+export function isValidMaxQuantity(value) {
+  const n = Number(value);
+  return Number.isInteger(n) && n >= 1;
+}
+
 export const RULE_STATUS = {
   ACTIVE: "active",
   PAUSED: "paused",
