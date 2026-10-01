@@ -35,7 +35,10 @@ export const loader = async ({ request }) => {
   // No order activity is recorded yet — see app/utils/features.js.
   if (!ORDER_ACTIVITY_ENABLED) throw redirect("/app/rules");
   const url = new URL(request.url);
-  const period = url.searchParams.get("period") ?? "30";
+  // Unknown values (e.g. a hand-edited ?period=foo) fall back to 30 days
+  // instead of an Invalid Date reaching Prisma as a 500.
+  const requestedPeriod = url.searchParams.get("period");
+  const period = PERIODS.some((p) => p.value === requestedPeriod) ? requestedPeriod : "30";
   const ruleType = url.searchParams.get("type") ?? "all";
   const ruleId = url.searchParams.get("rule");
 

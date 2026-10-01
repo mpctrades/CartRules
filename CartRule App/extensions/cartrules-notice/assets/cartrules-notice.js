@@ -31,8 +31,31 @@
   if (rules.length === 0) return;
 
   const messageEl = document.getElementById("cartrules-cart-message");
-  const lineByKey = new Map(lines.map((l) => [String(l.key), l]));
-  const lineByVariant = new Map(lines.map((l) => [String(l.variantId), l]));
+  let lineByKey = new Map();
+  let lineByVariant = new Map();
+  function setLines(next) {
+    lines = next;
+    lineByKey = new Map(lines.map((l) => [String(l.key), l]));
+    lineByVariant = new Map(lines.map((l) => [String(l.variantId), l]));
+  }
+  setLines(lines);
+
+  // The inlined map is rendered once with the page, but themes re-render only
+  // their own cart section after an update — so a line added or removed on
+  // the cart page (drawer, upsell) would be missing from it, or shift every
+  // line position after it. Re-read the cart from the AJAX API instead.
+  function reloadLines() {
+    const root = (window.Shopify && window.Shopify.routes && window.Shopify.routes.root) || "/";
+    return fetch(`${root}cart.js`, { headers: { Accept: "application/json" } })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((cart) => {
+        if (!cart || !Array.isArray(cart.items)) return;
+        setLines(
+          cart.items.map((item) => ({ key: item.key, variantId: item.variant_id, productId: item.product_id })),
+        );
+      })
+      .catch(() => {});
+  }
 
   // syncRulesCache keeps only the most restrictive max_quantity rule per
   // product, so at most one rule matches.
@@ -62,7 +85,9 @@
     const productId = closestAttr(input, ["data-product-id"]);
     if (productId) return { key: null, productId };
 
-    // 1-based line position (Dawn's data-index, older themes' data-line).
+    // 1-based line position (Dawn's data-index, older themes' data-line) —
+    // only trustworthy while the page and the map list the same lines.
+    if (quantityInputs().length !== lines.length) return null;
     const position = parseInt(input.getAttribute("data-index") || input.getAttribute("data-line") || "", 10);
     return lines[position - 1] || null;
   }
@@ -138,13 +163,31 @@
     true,
   );
 
+  // Which cart rows the page currently shows — when this changes, lines were
+  // added or removed and the map must be re-read before checking again.
+  function rowsSignature() {
+    return quantityInputs()
+      .map((input) => closestAttr(input, ["data-quantity-line-key", "data-line-key", "data-cart-item-key", "data-key"]) || input.id)
+      .join("|");
+  }
+  let lastRows = rowsSignature();
+
   // Themes re-render cart rows after every update; re-check once they settle.
   let pending = null;
   new MutationObserver(() => {
     if (pending) return;
     pending = setTimeout(() => {
-      pending = null;
-      refresh();
+      const rows = rowsSignature();
+      if (rows === lastRows) {
+        pending = null;
+        refresh();
+        return;
+      }
+      lastRows = rows;
+      reloadLines().then(() => {
+        pending = null;
+        refresh();
+      });
     }, 300);
   }).observe(document.body, { childList: true, subtree: true });
 
