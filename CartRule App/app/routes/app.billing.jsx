@@ -2,7 +2,7 @@ import { json } from "@remix-run/node";
 import { useActionData, useLoaderData, useSubmit } from "@remix-run/react";
 import { Page, Card, BlockStack, InlineGrid, InlineStack, Text, Button, Badge, List, Banner } from "@shopify/polaris";
 import { authenticate, BILLING_PLANS, FREE_PLAN_RULE_LIMIT } from "../shopify.server";
-import { countActiveRules } from "../models/rules.server";
+import { countActiveRules, enforceFreePlanLimit } from "../models/rules.server";
 import { getMonthlyEventCount } from "../models/events.server";
 import { isDevelopmentStore } from "../models/shop.server";
 import { Eyebrow, BrandPill, BRAND_ORANGE } from "../components/brand";
@@ -18,6 +18,15 @@ export const loader = async ({ request }) => {
   });
   const currentPlan = hasActivePayment ? appSubscriptions[0]?.name : "Free";
   const currentSubscriptionId = hasActivePayment ? appSubscriptions[0]?.id : null;
+  // A subscription can also end outside this page (cancelled, declined,
+  // frozen) — bring the shop back within the Free cap whenever it's on Free.
+  if (!hasActivePayment) {
+    try {
+      await enforceFreePlanLimit(admin, FREE_PLAN_RULE_LIMIT);
+    } catch (error) {
+      console.error("Failed to enforce Free plan limit", { shop: session.shop, error });
+    }
+  }
   const [activeRules, monthlyEvents] = await Promise.all([
     countActiveRules(admin),
     ORDER_ACTIVITY_ENABLED ? getMonthlyEventCount(session.shop) : 0,
@@ -55,7 +64,15 @@ export const action = async ({ request }) => {
         });
       }
     }
-    return json({ ok: true });
+    // Free allows FREE_PLAN_RULE_LIMIT active rules — pause the rest so the
+    // downgrade doesn't keep unlimited rules enforced at checkout.
+    let pausedCount = 0;
+    try {
+      pausedCount = await enforceFreePlanLimit(admin, FREE_PLAN_RULE_LIMIT);
+    } catch (error) {
+      console.error("Failed to enforce Free plan limit", { shop: session.shop, error });
+    }
+    return json({ ok: true, pausedCount });
   }
 
   if (!Object.values(BILLING_PLANS).includes(plan)) {
@@ -150,6 +167,14 @@ export default function Billing() {
       <BlockStack gap="400">
         <Eyebrow>Plans &amp; billing</Eyebrow>
         {actionData?.billingError ? <Banner tone="critical">{actionData.billingError}</Banner> : null}
+        {actionData?.pausedCount ? (
+          <Banner tone="info" title="You're now on the Free plan">
+            <p>
+              The Free plan allows {freeLimit} active rules, so {actionData.pausedCount} rule
+              {actionData.pausedCount === 1 ? " was" : "s were"} paused. Your most recently updated rules stay active.
+            </p>
+          </Banner>
+        ) : null}
         <Card>
           <BlockStack gap="400">
             <InlineGrid columns={{ xs: 1, sm: ORDER_ACTIVITY_ENABLED ? 3 : 2 }} gap="400">

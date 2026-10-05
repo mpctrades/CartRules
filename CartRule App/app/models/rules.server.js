@@ -17,6 +17,24 @@ export const METAOBJECT_TYPE = "cartrules_rule";
 export const CACHE_NAMESPACE = "cartrules";
 export const CACHE_KEY = "rules_cache";
 
+// Shopify Functions don't receive metafield values over 10,000 bytes — the
+// Function's input gets `null` instead, and enforces nothing. See
+// https://shopify.dev/docs/api/functions/latest ("Fixed limits").
+export const FUNCTION_METAFIELD_MAX_BYTES = 10000;
+
+/**
+ * Thrown when a rule write succeeded but rebuilding the checkout cache
+ * afterwards failed — callers must not report the write itself as failed,
+ * or a retry creates a duplicate rule.
+ */
+export class RulesCacheSyncError extends Error {
+  constructor(cause) {
+    super(`Rule saved, but the checkout cache sync failed: ${cause?.message ?? cause}`);
+    this.name = "RulesCacheSyncError";
+    this.cause = cause;
+  }
+}
+
 // Re-exported for existing server-side callers; new code (and anything used
 // from a route component) should import these from ./ruleConstants directly.
 export { RULE_TYPES, TARGET_TYPES, RULE_STATUS };
@@ -313,8 +331,13 @@ export async function createRule(admin, data) {
   if (errors?.length) {
     throw new Error(`Could not create rule: ${JSON.stringify(errors)}`);
   }
-  await syncRulesCache(admin);
-  return json.data.metaobjectCreate.metaobject.id;
+  const id = json.data.metaobjectCreate.metaobject.id;
+  try {
+    await syncRulesCache(admin);
+  } catch (error) {
+    throw new RulesCacheSyncError(error);
+  }
+  return id;
 }
 
 /** Updates an existing rule (edit screen) and refreshes the checkout cache. */
@@ -369,7 +392,9 @@ export async function setRuleStatus(admin, id, status) {
   if (errors?.length) {
     throw new Error(`Could not change rule status: ${JSON.stringify(errors)}`);
   }
-  await syncRulesCache(admin);
+  // Only (re)activating a rule should switch the checkout validation on —
+  // pausing must leave a merchant-disabled validation alone.
+  await syncRulesCache(admin, { activateValidation: status === RULE_STATUS.ACTIVE });
 }
 
 export async function deleteRule(admin, id) {
@@ -385,7 +410,7 @@ export async function deleteRule(admin, id) {
   if (errors?.length) {
     throw new Error(`Could not delete rule: ${JSON.stringify(errors)}`);
   }
-  await syncRulesCache(admin);
+  await syncRulesCache(admin, { activateValidation: false });
 }
 
 /**
@@ -529,6 +554,20 @@ export async function syncRulesCache(admin, { activateValidation = true } = {}) 
     rule.productIds = (rule.productIds ?? []).filter((pid) => winningRuleForProduct.get(pid) === rule.id);
   }
 
+  const cacheValue = JSON.stringify({
+    rules: resolved,
+    enabled: settings.protectionEnabled,
+    productNoticesEnabled: settings.productNoticesEnabled,
+    cartNoticesEnabled: settings.cartNoticesEnabled,
+    generatedAt: new Date().toISOString(),
+  });
+  const cacheBytes = Buffer.byteLength(cacheValue, "utf8");
+  if (cacheBytes > FUNCTION_METAFIELD_MAX_BYTES) {
+    // Still written, so the admin and theme blocks stay accurate — the Rules
+    // page reads the size back and tells the merchant checkout isn't enforced.
+    console.warn("rules_cache exceeds the Function metafield limit", { cacheBytes });
+  }
+
   const response = await admin.graphql(
     `#graphql
     mutation SyncRulesCache($metafields: [MetafieldsSetInput!]!) {
@@ -544,13 +583,7 @@ export async function syncRulesCache(admin, { activateValidation = true } = {}) 
             namespace: CACHE_NAMESPACE,
             key: CACHE_KEY,
             type: "json",
-            value: JSON.stringify({
-              rules: resolved,
-              enabled: settings.protectionEnabled,
-              productNoticesEnabled: settings.productNoticesEnabled,
-              cartNoticesEnabled: settings.cartNoticesEnabled,
-              generatedAt: new Date().toISOString(),
-            }),
+            value: cacheValue,
           },
         ],
       },
@@ -654,13 +687,50 @@ export async function readRulesCache(admin) {
   );
   const json = await response.json();
   const raw = json.data?.shop?.metafield?.value;
-  if (!raw) return { rules: [] };
+  if (!raw) return { rules: [], enabled: true, bytes: 0 };
+  const bytes = Buffer.byteLength(raw, "utf8");
   try {
     const parsed = JSON.parse(raw);
-    return { rules: Array.isArray(parsed.rules) ? parsed.rules : [] };
+    return {
+      rules: Array.isArray(parsed.rules) ? parsed.rules : [],
+      // Same default as the Function: undefined counts as enabled.
+      enabled: parsed.enabled !== false,
+      bytes,
+    };
   } catch (_err) {
-    return { rules: [] };
+    return { rules: [], enabled: true, bytes };
   }
+}
+
+/**
+ * Pauses active rules beyond the Free-plan cap, keeping the most recently
+ * updated ones (listRules sorts by updated_at desc). Used when a shop drops
+ * to Free, so a downgrade can't keep unlimited rules enforced.
+ * Returns the number of rules paused.
+ */
+export async function enforceFreePlanLimit(admin, limit) {
+  const active = (await listRules(admin)).filter((r) => r.status === RULE_STATUS.ACTIVE);
+  const excess = active.slice(limit);
+  for (const rule of excess) {
+    const response = await admin.graphql(
+      `#graphql
+      mutation PauseCartRule($id: ID!, $metaobject: MetaobjectUpdateInput!) {
+        metaobjectUpdate(id: $id, metaobject: $metaobject) {
+          userErrors { field message }
+        }
+      }`,
+      { variables: { id: rule.id, metaobject: { fields: [{ key: "status", value: RULE_STATUS.PAUSED }] } } },
+    );
+    const json = await response.json();
+    const errors = json.data?.metaobjectUpdate?.userErrors;
+    if (errors?.length) {
+      throw new Error(`Could not pause rule ${rule.id}: ${JSON.stringify(errors)}`);
+    }
+  }
+  if (excess.length > 0) {
+    await syncRulesCache(admin, { activateValidation: false });
+  }
+  return excess.length;
 }
 
 /** Enforces the Free-plan cap (brief section 08: 3 active rules on Free). */

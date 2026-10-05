@@ -13,7 +13,7 @@ import {
   Banner,
 } from "@shopify/polaris";
 import { authenticate, BILLING_PLANS, FREE_PLAN_RULE_LIMIT } from "../shopify.server";
-import { createRule, countActiveRules } from "../models/rules.server";
+import { createRule, countActiveRules, RulesCacheSyncError } from "../models/rules.server";
 import { getSettings } from "../models/settings.server";
 import { hasPaidPlan } from "../models/shop.server";
 import { RULE_TYPES, TARGET_TYPES, RULE_STATUS, isValidMaxQuantity } from "../models/ruleConstants";
@@ -164,6 +164,16 @@ export const action = async ({ request }) => {
       return redirectWithToast("/app", `Rule "${title}" created and activated`);
     } catch (error) {
       if (error instanceof Response) throw error;
+      if (error instanceof RulesCacheSyncError) {
+        // The rule exists — sending the merchant back to retry would create a
+        // duplicate. Any later rule change or settings save resyncs checkout.
+        console.error("Rule saved but checkout sync failed", error.cause);
+        return redirectWithToast(
+          "/app",
+          "Rule saved, but checkout couldn't be updated yet. Pause and resume the rule to retry.",
+          { isError: true },
+        );
+      }
       console.error("Failed to save rule", error);
       return json({ ok: false, error: "We couldn't save this rule. Please try again." });
     }

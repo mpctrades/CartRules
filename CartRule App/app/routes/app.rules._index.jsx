@@ -33,6 +33,7 @@ import {
   getValidation,
   getCheckoutEnforcement,
   ensureValidationActive,
+  FUNCTION_METAFIELD_MAX_BYTES,
 } from "../models/rules.server";
 import { getTriggerCountsByRule } from "../models/events.server";
 import { hasPaidPlan, isDevelopmentStore } from "../models/shop.server";
@@ -71,6 +72,9 @@ export const loader = async ({ request }) => {
     freeLimit: FREE_PLAN_RULE_LIMIT,
     isFreePlan: !hasActivePayment,
     checkoutEnforcing,
+    // Over this size Shopify hands the checkout Function `null` instead of
+    // the cache, so no rule is enforced — the merchant has to know.
+    cacheTooLarge: cache.bytes > FUNCTION_METAFIELD_MAX_BYTES,
   });
 };
 
@@ -148,6 +152,25 @@ async function handleRuleAction({ request }) {
 
     if (rule.status !== RULE_STATUS.ACTIVE) {
       return json({ test: { matched: false, reason: "This rule is paused, so it isn't enforced at checkout." } });
+    }
+
+    if (!cache.enabled) {
+      return json({
+        test: {
+          matched: false,
+          reason: "CartRules protection is turned off in Settings, so no rule is enforced at checkout.",
+        },
+      });
+    }
+
+    if (cache.bytes > FUNCTION_METAFIELD_MAX_BYTES) {
+      return json({
+        test: {
+          matched: false,
+          reason:
+            "Your active rules cover too many products for Shopify's checkout rule to read, so no rule is enforced at checkout. See the banner on this page.",
+        },
+      });
     }
 
     const validation = await getValidation(admin);
@@ -349,7 +372,7 @@ function RuleRow({ rule, index, navigate, onOpenTest }) {
 }
 
 export default function RulesList() {
-  const { rules, activeCount, freeLimit, isFreePlan, checkoutEnforcing } = useLoaderData();
+  const { rules, activeCount, freeLimit, isFreePlan, checkoutEnforcing, cacheTooLarge } = useLoaderData();
   const navigate = useNavigate();
   const validationFetcher = useFetcher();
   useActionToast(validationFetcher);
@@ -451,6 +474,16 @@ export default function RulesList() {
             <p>
               The CartRules checkout rule is off in Shopify (Settings → Checkout → Checkout rules), so customers can
               check out without these limits applying.
+            </p>
+          </Banner>
+        ) : null}
+
+        {cacheTooLarge && activeCount > 0 ? (
+          <Banner tone="critical" title="Your active rules cover too many products to enforce at checkout">
+            <p>
+              Shopify limits how much rule data a checkout rule can read, and your active rules are over that limit, so
+              none of them are enforced at checkout right now. Pause some rules, or target smaller collections or tags
+              (around 250 products in total across active rules).
             </p>
           </Banner>
         ) : null}
