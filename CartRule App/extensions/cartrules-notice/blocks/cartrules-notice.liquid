@@ -12,7 +12,7 @@
 {% if cache and cache.enabled != false and cache.productNoticesEnabled != false %}
   {% assign product_gid_suffix = product.id | append: '' %}
   {% for rule in cache.rules %}
-    {% if rule.ruleType == 'max_quantity' %}
+    {% if rule.ruleType == 'max_quantity' or rule.ruleType == 'no_discount' %}
       {% assign matches = false %}
       {% if rule.matchType == 'product_id' %}
         {% for pid in rule.productIds %}
@@ -25,11 +25,17 @@
 
       {% if matches %}
         {% assign rendered_notice = true %}
-        <div class="cartrules-notice" data-cartrules-max="{{ rule.maxQuantity | escape }}">
+        <div
+          class="cartrules-notice"
+          {% if rule.ruleType == 'max_quantity' %}data-cartrules-max="{{ rule.maxQuantity | escape }}"{% endif %}
+          style="padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0.5rem; border: 1px solid rgba(var(--color-foreground, 18, 18, 18), 0.25);"
+        >
           {% if rule.message != blank %}
             {{ rule.message | escape }}
-          {% else %}
+          {% elsif rule.ruleType == 'max_quantity' %}
             Maximum {{ rule.maxQuantity }} per order for this item.
+          {% else %}
+            Discount codes can't be used on this item.
           {% endif %}
         </div>
       {% endif %}
@@ -46,10 +52,10 @@
   triggered the App Store review's "widget not visible" rejection.
 {% endcomment %}
 {% if request.design_mode and rendered_notice == false %}
-  <div class="cartrules-notice cartrules-notice--placeholder">
+  <div class="cartrules-notice cartrules-notice--placeholder" style="padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0.5rem; border: 1px dashed rgba(var(--color-foreground, 18, 18, 18), 0.35);">
     {% if cache %}
-      No maximum-quantity rule applies to this product right now. Add or edit
-      a rule in the CartRules app to see the live notice here.
+      No CartRules rule applies to this product right now. Add or edit a rule
+      in the CartRules app to see the live notice here.
     {% else %}
       CartRules is installed but hasn't synced any rules yet. Create a rule
       in the CartRules app to activate this notice.

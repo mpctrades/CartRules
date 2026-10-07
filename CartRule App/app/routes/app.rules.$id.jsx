@@ -12,7 +12,7 @@ import {
   Banner,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
-import { listRules, updateRule } from "../models/rules.server";
+import { listRules, updateRule, RulesCacheSyncError } from "../models/rules.server";
 import { RULE_TYPES, TARGET_TYPES, isValidMaxQuantity } from "../models/ruleConstants";
 import RuleTypeCards from "../components/RuleTypeCards";
 import { redirectWithToast } from "../utils/toastRedirect.server";
@@ -53,6 +53,15 @@ export const action = async ({ request, params }) => {
     });
   } catch (error) {
     if (error instanceof Response) throw error;
+    if (error instanceof RulesCacheSyncError) {
+      // The edit itself was saved — don't tell the merchant it wasn't.
+      console.error("Rule updated but checkout sync failed", error.cause);
+      return redirectWithToast(
+        "/app/rules",
+        "Rule saved, but checkout couldn't be updated yet. Pause and resume the rule to retry.",
+        { isError: true },
+      );
+    }
     console.error("Failed to update rule", { id: gid, error });
     return json({ ok: false, error: "We couldn't save your changes. Please try again." });
   }

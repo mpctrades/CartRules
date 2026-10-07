@@ -333,7 +333,8 @@ export async function createRule(admin, data) {
   }
   const id = json.data.metaobjectCreate.metaobject.id;
   try {
-    await syncRulesCache(admin);
+    // A paused rule (e.g. a duplicate) doesn't need checkout enforcement.
+    await syncRulesCache(admin, { activateValidation: data.status === RULE_STATUS.ACTIVE });
   } catch (error) {
     throw new RulesCacheSyncError(error);
   }
@@ -357,7 +358,13 @@ export async function updateRule(admin, id, data) {
   if (errors?.length) {
     throw new Error(`Could not update rule: ${JSON.stringify(errors)}`);
   }
-  await syncRulesCache(admin);
+  // Editing a rule must not switch back on a validation the merchant turned
+  // off in Shopify — the Rules page reports that state and offers a button.
+  try {
+    await syncRulesCache(admin, { activateValidation: false });
+  } catch (error) {
+    throw new RulesCacheSyncError(error);
+  }
 }
 
 /** Copies an existing rule as a new PAUSED rule (merchant reviews/renames before activating). */

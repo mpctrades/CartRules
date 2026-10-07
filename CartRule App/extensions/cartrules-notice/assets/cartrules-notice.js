@@ -123,9 +123,11 @@
     const value = parseInt(input.value, 10);
     if (Number.isNaN(value) || value === 0) return null;
 
-    const allowed = Math.max(1, rule.maxQuantity - otherLinesQuantity(input, line));
+    const allowed = rule.maxQuantity - otherLinesQuantity(input, line);
     if (value <= allowed) return null;
-    if (clamp) input.value = String(allowed);
+    // Other lines of this product already use the whole limit: there's no
+    // valid quantity to clamp to here, so just keep the message showing.
+    if (clamp && allowed >= 1) input.value = String(allowed);
     return rule.message || `Maximum ${rule.maxQuantity} per order for this item.`;
   }
 

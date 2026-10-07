@@ -160,7 +160,7 @@ function ContactSupportCard({ shop, currentPlan }) {
       .filter(Boolean)
       .join("\n");
     const body = `${message}\n\n---\nTopic: ${topic}\n${technicalInfo}`;
-    window.location.href = buildMailto({ subject: subject || `CartRules — ${topic}`, body });
+    window.open(buildMailto({ subject: subject || `CartRules — ${topic}`, body }), "_blank");
   };
 
   return (
@@ -192,7 +192,7 @@ function FeatureRequestCard({ shop }) {
 
   const send = () => {
     const body = `What feature would you like?\n${feature}\n\nHow would it help your store?\n${benefit}\n\n---\nStore: ${shop}`;
-    window.location.href = buildMailto({ subject: "CartRules — Feature request", body });
+    window.open(buildMailto({ subject: "CartRules — Feature request", body }), "_blank");
   };
 
   return (
