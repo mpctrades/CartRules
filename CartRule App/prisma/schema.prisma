@@ -35,21 +35,40 @@ model Session {
   refreshTokenExpires DateTime?
 }
 
-// One row per rule that actually fired on a real order line, recorded from
-// the orders/create webhook (see app/models/events.server.js for exactly
-// what's read off the order — never anything customer-identifying).
+// One row per rule enforcement CartRules observed. Sources:
+//  - "storefront": the theme blocks reported a shopper hitting a rule
+//    (app/routes/proxy.events.jsx, via the app proxy) — no customer data;
+//  - "test": a merchant ran the rule simulator (app/models/simulator.server.js);
+//  - "order": the orders/create webhook (only once Protected Customer Data
+//    access is approved — see app/utils/features.js).
 model RuleEvent {
   id           String   @id @default(cuid())
   shop         String
-  orderId      String
+  orderId      String   @default("")
   ruleId       String
   ruleTitle    String
-  ruleType     String // "no_discount" | "max_quantity"
+  ruleType     String
+  eventType    String   @default("") // e.g. "quantity_blocked", "discount_blocked", "rule_passed"
+  source       String   @default("order")
   productId    String?
   productTitle String?
-  detail       String? // e.g. "Attempted 5, allowed 2" or discount code "SAVE20"
+  attempted    Float?
+  allowed      Float?
+  cartKey      String? // hashed cart token: distinct protected carts, nothing identifying
+  detail       String?
   createdAt    DateTime @default(now())
 
   @@index([shop, createdAt])
   @@index([shop, ruleId])
+}
+
+// Per-shop bookkeeping for background jobs (app/scheduler.server.js).
+model ShopState {
+  shop               String    @id
+  nextScheduleAt     DateTime? // next time a scheduled rule starts or ends
+  lastWeeklySummary  DateTime?
+  lastHealthCheck    DateTime?
+  lastIssueKey       String? // issues already emailed, so each is sent once
+  remindedRuleIds    String? // JSON: scheduled rules already reminded about
+  updatedAt          DateTime  @updatedAt
 }

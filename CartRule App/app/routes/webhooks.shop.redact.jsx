@@ -17,6 +17,7 @@ export const action = async ({ request }) => {
 
   await db.$transaction([
     db.ruleEvent.deleteMany({ where: { shop } }),
+    db.shopState.deleteMany({ where: { shop } }),
     db.session.deleteMany({ where: { shop } }),
   ]);
 

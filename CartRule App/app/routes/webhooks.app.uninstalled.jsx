@@ -12,6 +12,8 @@ export const action = async ({ request }) => {
   if (session) {
     await db.session.deleteMany({ where: { shop } });
   }
+  // Nothing left to schedule for a shop that removed the app.
+  await db.shopState.deleteMany({ where: { shop } });
 
   return new Response();
 };

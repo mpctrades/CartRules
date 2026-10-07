@@ -1,43 +1,56 @@
 {% comment %}
-  CartRules — cart page quantity guard (F5 "auto-adjust in cart").
-  Add this block anywhere on the cart page template. It inlines the active
-  max-quantity rules, plus a key/variant/product map of the cart's lines (the
-  rules are keyed by product, but themes mark quantity inputs by line key,
-  variant id or line index — never reliably by product id), and
-  cartrules-notice.js lowers quantities above a rule's limit and explains why
-  in the message box below. The checkout Function stays the real enforcement.
+  CartRules — cart page guard. Add it anywhere on the cart template. It
+  inlines the rules cache and the cart (with each line's tags, collections,
+  vendor, type and discounts, plus the shopper's login/tags/country), and
+  assets/cartrules-notice.js runs the shared rule engine on it: quantities
+  above a maximum are lowered, and every rule the cart breaks is explained
+  here before the shopper reaches checkout. The checkout Function stays the
+  real enforcement. After cart updates the script re-renders this section
+  (Section Rendering API) to read the fresh cart.
 {% endcomment %}
 
 {% assign cache = shop.metafields.cartrules.rules_cache.value %}
-<script type="application/json" id="cartrules-rules-data">
-  {% if cache and cache.enabled != false and cache.cartNoticesEnabled != false %}{{ cache | json }}{% else %}{"rules":[]}{% endif %}
-</script>
-<script type="application/json" id="cartrules-cart-lines">
-  [{% for item in cart.items %}{"key":{{ item.key | json }},"variantId":{{ item.variant_id | json }},"productId":{{ item.product_id | json }}}{% unless forloop.last %},{% endunless %}{% endfor %}]
-</script>
-<script src="{{ 'cartrules-notice.js' | asset_url }}" defer></script>
+{%- capture cartrules_cart -%}
+  {"token":{{ cart.token | json }},"currency":{{ cart.currency.iso_code | json }},"subtotal":{{ cart.items_subtotal_price | divided_by: 100.0 | json }},"discountCode":{% assign code = nil %}{% for app in cart.discount_applications %}{% if app.type == 'discount_code' %}{% assign code = app.title %}{% endif %}{% endfor %}{{ code | json }},"lines":[{% for item in cart.items %}{"key":{{ item.key | json }},"productId":{{ item.product_id | json }},"variantId":{{ item.variant_id | json }},"title":{{ item.product.title | json }},"vendor":{{ item.vendor | json }},"productType":{{ item.product.type | json }},"tags":{{ item.product.tags | json }},"collections":[{% for c in item.product.collections %}"gid://shopify/Collection/{{ c.id }}"{% unless forloop.last %},{% endunless %}{% endfor %}],"quantity":{{ item.quantity }},"unitPrice":{{ item.final_price | divided_by: 100.0 | json }},"subtotal":{{ item.final_line_price | divided_by: 100.0 | json }},"hasDiscount":{% if item.discount_allocations.size > 0 %}true{% else %}false{% endif %}}{% unless forloop.last %},{% endunless %}{% endfor %}]}
+{%- endcapture -%}
+{%- capture cartrules_context -%}
+  {"customer":{"loggedIn":{% if customer %}true{% else %}false{% endif %},"b2b":{% if customer and customer.b2b? %}true{% else %}false{% endif %},"tags":{% if customer %}{{ customer.tags | json }}{% else %}[]{% endif %}},"country":{{ localization.country.iso_code | json }}}
+{%- endcapture -%}
 
 <div
-  id="cartrules-cart-message"
-  class="cartrules-cart-message"
-  role="status"
-  aria-live="polite"
-  style="padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0.5rem; border: 1px solid rgba(138, 0, 0, 0.35); color: #8a0000;"
-  hidden
-></div>
+  class="cartrules-cart-guard"
+  data-cartrules-cart-guard
+  data-section-id="{{ section.id }}"
+  data-engine-url="{{ 'cartrules-engine.js' | asset_url }}"
+>
+  <script type="application/json" data-cartrules-rules>
+    {% if cache and cache.enabled != false and cache.cartNoticesEnabled != false %}{{ cache | json }}{% else %}{"rules":[]}{% endif %}
+  </script>
+  <script type="application/json" data-cartrules-cart>{{ cartrules_cart }}</script>
+  <script type="application/json" data-cartrules-context>{{ cartrules_context }}</script>
+  <div
+    data-cartrules-messages
+    class="cartrules-cart-message"
+    role="status"
+    aria-live="polite"
+    style="padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0.5rem; border: 1px solid rgba(138, 0, 0, 0.35); color: #8a0000;"
+    hidden
+  ></div>
 
-{% comment %}
-  Renders nothing visible on the live storefront until a quantity is over a
-  limit, so in the theme editor merchants would get no visual confirmation
-  the block was added at all — surfaced by the App Store review as "widget
-  not visible ... in Theme Editor". Show a small placeholder in the editor.
-{% endcomment %}
-{% if request.design_mode %}
-  <div class="cartrules-cart-guard cartrules-cart-guard--placeholder">
-    CartRules cart quantity guard — shows a message here and lowers the quantity when a customer goes over a
-    maximum-quantity rule.
-  </div>
-{% endif %}
+  {% comment %}
+    Nothing is visible on the live storefront until the cart breaks a rule,
+    so the theme editor gets a small placeholder to confirm the block is there.
+  {% endcomment %}
+  {% if request.design_mode %}
+    <div
+      class="cartrules-cart-guard--placeholder"
+      style="padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0.5rem; border: 1px dashed rgba(var(--color-foreground, 18, 18, 18), 0.35);"
+    >
+      CartRules cart guard — explains here when the cart breaks a rule, and lowers quantities above a maximum.
+    </div>
+  {% endif %}
+</div>
+<script src="{{ 'cartrules-notice.js' | asset_url }}" type="module"></script>
 
 {% schema %}
 {

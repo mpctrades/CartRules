@@ -1,13 +1,14 @@
 {
   "name": "cartrules",
   "private": true,
+  "version": "2.0.0",
   "type": "module",
   "scripts": {
-    "build": "remix vite:build",
+    "build": "node scripts/sync-engine.mjs --check && remix vite:build",
     "dev": "shopify app dev",
     "config:link": "shopify app config link",
     "generate": "shopify app generate",
-    "deploy": "shopify app deploy",
+    "deploy": "node scripts/sync-engine.mjs --check && shopify app deploy",
     "config:use": "shopify app config use",
     "env": "shopify app env",
     "start": "remix-serve ./build/server/index.js",
@@ -16,7 +17,9 @@
     "lint": "eslint --cache --cache-location ./node_modules/.cache/eslint .",
     "shopify": "shopify",
     "prisma": "prisma",
-    "vite": "vite"
+    "vite": "vite",
+    "sync-engine": "node scripts/sync-engine.mjs",
+    "test": "node --test tests/"
   },
   "engines": {
     "node": "^20 || >=22"
@@ -30,10 +33,11 @@
     "@shopify/app-bridge-react": "^4.2.13",
     "@shopify/polaris": "^13.9.5",
     "@shopify/polaris-icons": "^9.3.1",
+    "@shopify/shopify_function": "~2.0.0",
     "@shopify/shopify-app-remix": "^5.0.1",
     "@shopify/shopify-app-session-storage-prisma": "^6.0.0",
-    "@shopify/shopify_function": "~2.0.0",
     "isbot": "^5.1.0",
+    "nodemailer": "^10.0.15",
     "prisma": "^6.4.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"

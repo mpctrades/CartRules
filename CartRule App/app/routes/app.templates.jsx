@@ -1,132 +1,107 @@
-import { useMemo, useState } from "react";
-import { useNavigate } from "@remix-run/react";
-import { Page, Card, BlockStack, InlineGrid, InlineStack, Text, Button, Badge, Tabs } from "@shopify/polaris";
-import { AlertTriangleIcon, CartDiscountIcon } from "@shopify/polaris-icons";
-import { RULE_TYPES } from "../models/ruleConstants";
-import { Eyebrow, IconChip } from "../components/brand";
+import { json } from "@remix-run/node";
+import { useLoaderData, useNavigate, useSearchParams } from "@remix-run/react";
+import { Badge, BlockStack, Button, InlineStack, Text } from "@shopify/polaris";
+import { authenticate } from "../shopify.server";
+import { getPlan, lockedFeatures } from "../models/plan.server";
+import { TEMPLATES, TEMPLATE_CATEGORIES } from "../models/templates";
+import { RULE_TYPE_INFO, TARGET_INFO } from "../models/ruleConstants";
+import { describeTarget, describeCustomer } from "../models/ruleDisplay";
+import { AppPage, Segmented } from "../components/ui";
 
-// Icon and Badge don't share a tone vocabulary (Icon has "caution", Badge
-// doesn't) — badgeTone is the closest valid <Badge tone> for the same
-// category.
-function templateIcon(category) {
-  return category === "quantity"
-    ? { icon: AlertTriangleIcon, tone: "caution", badgeTone: "warning" }
-    : { icon: CartDiscountIcon, tone: "magic", badgeTone: "magic" };
-}
-
-// Pre-built starting points for the 3-step wizard. Only using the two rule
-// types CartRules actually enforces (no_discount / max_quantity) — no
-// "minimum quantity" / "cart value" / scheduled templates here, since those
-// rule types don't exist in the checkout Function yet (see the roadmap
-// items in README). A template pre-fills step 1 (rule type) and step 3
-// (message) — the merchant still picks their own products/tags/collection
-// in step 2, since a template can't know that.
-const TEMPLATES = [
-  {
-    key: "limited-edition",
-    title: "Limited edition",
-    badge: "Max 1 per order",
-    description: "Protect limited drops and exclusive items from being bought in bulk.",
-    ruleType: RULE_TYPES.MAX_QUANTITY,
-    maxQuantity: "1",
-    message: "This is a limited edition item — only 1 per order.",
-    category: "quantity",
-  },
-  {
-    key: "no-discount",
-    title: "No discount",
-    badge: "Block discount codes",
-    description: "Exclude products from promotional discounts to protect margin.",
-    ruleType: RULE_TYPES.NO_DISCOUNT,
-    message: "This item is already at its best price — discount codes do not apply.",
-    category: "discount",
-  },
-  {
-    key: "bulky-item-cap",
-    title: "Bulky item cap",
-    badge: "Max 2 per order",
-    description: "Cap orders on heavy or oversized items to protect shipping margin.",
-    ruleType: RULE_TYPES.MAX_QUANTITY,
-    maxQuantity: "2",
-    message: "There is a maximum of 2 per order for this item due to shipping size.",
-    category: "quantity",
-  },
-  {
-    key: "reseller-protection",
-    title: "Reseller protection",
-    badge: "Max 3 per order",
-    description: "Stop resellers from emptying limited stock in a single order.",
-    ruleType: RULE_TYPES.MAX_QUANTITY,
-    maxQuantity: "3",
-    message: "There is a maximum quantity for this item per order.",
-    category: "quantity",
-  },
-];
-
-// Only categories with at least one real template today — no "Cart" or
-// "Wholesale" chip yet, since those rule types don't exist until the
-// checkout Function supports them (see the roadmap in README).
-const CATEGORIES = [
-  { id: "all", label: "All" },
-  { id: "quantity", label: "Quantity" },
-  { id: "discount", label: "Discount" },
-];
+// Templates only pre-fill the rule form (/app/rules/new?template=<id>) —
+// nothing is created or activated from this page.
+export const loader = async ({ request }) => {
+  const { admin, session, billing } = await authenticate.admin(request);
+  const plan = await getPlan(admin, billing, session.shop);
+  const requiredPlan = Object.fromEntries(
+    TEMPLATES.map((t) => {
+      const rule = {
+        ...t.rule,
+        schedule: t.rule.scheduled ? { startsAt: "pending", endsAt: null } : null,
+      };
+      const locked = lockedFeatures(rule, plan.name);
+      const needs = locked.length ? (locked.some((f) => f.plan === "Pro") ? "Pro" : "Growth") : null;
+      return [t.id, needs];
+    }),
+  );
+  return json({ plan: plan.name, requiredPlan });
+};
 
 export default function Templates() {
+  const { requiredPlan } = useLoaderData();
   const navigate = useNavigate();
-  const [categoryTab, setCategoryTab] = useState(0);
-
-  const useTemplate = (template) => {
-    const params = new URLSearchParams({ ruleType: template.ruleType, message: template.message });
-    if (template.maxQuantity) params.set("maxQuantity", template.maxQuantity);
-    navigate(`/app/rules/new?${params.toString()}`);
-  };
-
-  const activeCategory = CATEGORIES[categoryTab].id;
-  const visibleTemplates = useMemo(
-    () => (activeCategory === "all" ? TEMPLATES : TEMPLATES.filter((t) => t.category === activeCategory)),
-    [activeCategory],
-  );
+  const [searchParams, setSearchParams] = useSearchParams();
+  const category = TEMPLATE_CATEGORIES.some((c) => c.id === searchParams.get("category"))
+    ? searchParams.get("category")
+    : "all";
+  const shown = category === "all" ? TEMPLATES : TEMPLATES.filter((t) => t.categories.includes(category));
 
   return (
-    <Page title="Templates" subtitle="Common rules, ready to adjust and use.">
-      <BlockStack gap="400">
-        <Eyebrow>Templates</Eyebrow>
-        <Tabs tabs={CATEGORIES.map((c) => ({ id: c.id, content: c.label }))} selected={categoryTab} onSelect={setCategoryTab} />
-        <InlineGrid columns={{ xs: 1, sm: 2, md: 2 }} gap="400">
-          {visibleTemplates.map((template) => {
-            const { icon, tone, badgeTone } = templateIcon(template.category);
-            return (
-              <Card key={template.key}>
-                <BlockStack gap="200">
-                  <InlineStack gap="200" blockAlign="center">
-                    <IconChip icon={icon} tone={tone} />
-                    <BlockStack gap="100">
-                      <Text as="h2" variant="headingMd">
-                        {template.title}
-                      </Text>
-                      <div>
-                        <Badge tone={badgeTone}>{template.badge}</Badge>
-                      </div>
-                    </BlockStack>
-                  </InlineStack>
-                  <Text as="p" tone="subdued">
-                    {template.description}
+    <AppPage
+      title="Templates"
+      subtitle="Start from a proven rule. You choose the products and review everything before saving — nothing goes live on its own."
+    >
+      <div>
+        <Segmented
+          label="Template category"
+          options={TEMPLATE_CATEGORIES.map((c) => ({ label: c.label, value: c.id }))}
+          value={category}
+          onChange={(value) => {
+            const next = new URLSearchParams(searchParams);
+            if (value === "all") next.delete("category");
+            else next.set("category", value);
+            setSearchParams(next, { replace: true });
+          }}
+        />
+      </div>
+
+      <div className="cr-grid cr-grid--3">
+        {shown.map((t) => {
+          const needs = requiredPlan[t.id];
+          const extras = [];
+          if (t.rule.customer) extras.push(describeCustomer(t.rule.customer));
+          if (t.rule.scheduled) extras.push("Runs on a schedule");
+          return (
+            <div key={t.id} className="cr-card" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <InlineStack align="space-between" blockAlign="start" gap="200" wrap={false}>
+                <BlockStack gap="050">
+                  <Text as="h3" variant="headingMd">
+                    {t.title}
                   </Text>
-                  <div>
-                    <Button onClick={() => useTemplate(template)}>Use template</Button>
-                  </div>
+                  <span className="cr-link-accent" style={{ fontSize: 13 }}>
+                    {t.summary}
+                  </span>
                 </BlockStack>
-              </Card>
-            );
-          })}
-        </InlineGrid>
-        {visibleTemplates.length === 0 ? (
-          <Text as="p" tone="subdued">
-            No templates in this category yet.
-          </Text>
-        ) : null}
-      </BlockStack>
-    </Page>
+                {needs ? <Badge tone="info">{`${needs} plan`}</Badge> : null}
+              </InlineStack>
+              <Text as="p" tone="subdued">
+                {t.description}
+              </Text>
+              <div className="cr-muted" style={{ marginTop: "auto" }}>
+                {RULE_TYPE_INFO[t.rule.ruleType]?.title} ·{" "}
+                {t.rule.target.type !== "all" && !t.rule.target.values.length
+                  ? `${TARGET_INFO[t.rule.target.type]?.label} you choose`
+                  : describeTarget(t.rule.target)}
+                {extras.length ? ` · ${extras.join(" · ")}` : ""}
+              </div>
+              <div>
+                <Button onClick={() => navigate(`/app/rules/new?template=${encodeURIComponent(t.id)}`)}>
+                  Use template
+                </Button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {Object.values(requiredPlan).some(Boolean) ? (
+        <Text as="p" tone="subdued">
+          Templates marked with a plan use features from that plan. You can still open them and adjust the rule, or{" "}
+          <a className="cr-link-accent" href="/app/billing" onClick={(e) => { e.preventDefault(); navigate("/app/billing"); }}>
+            compare plans
+          </a>
+          .
+        </Text>
+      ) : null}
+    </AppPage>
   );
 }

@@ -6,7 +6,14 @@ import {
 } from "@shopify/shopify-app-remix/server";
 import { RefreshingPrismaSessionStorage } from "./session-storage.server";
 import prisma from "./db.server";
-import { ensureValidationActive, getValidation } from "./models/rules.server";
+import {
+  ensureValidationActive,
+  ensureMetaobjectDefinition,
+  getValidation,
+  readRulesCache,
+  syncRulesCache,
+} from "./models/rules.server";
+import { getPrimaryLocale, getSettings, setSettings } from "./models/settings.server";
 
 // The installed @shopify/shopify-api's `ApiVersion` enum tops out at "2025-07"
 // (its latest npm release hasn't been bumped) — over a year stale relative to
@@ -87,6 +94,25 @@ const shopify = shopifyApp({
         if (!(await getValidation(admin))) await ensureValidationActive(admin);
       } catch (error) {
         console.error("Failed to activate checkout validation", { shop: session.shop, error });
+      }
+      // Rules v2: add the metaobject `config` field, follow the store's
+      // language for default messages, and rewrite a v1 checkout cache in the
+      // new format (the Function still reads v1, so nothing breaks before this).
+      try {
+        await ensureMetaobjectDefinition(admin, session.shop);
+        const [settings, locale, cache] = await Promise.all([
+          getSettings(admin),
+          getPrimaryLocale(admin),
+          readRulesCache(admin),
+        ]);
+        let changed = false;
+        if (settings.shopLocale !== locale) {
+          await setSettings(admin, { shopLocale: locale });
+          changed = true;
+        }
+        if (changed || (cache.exists && cache.version < 2)) await syncRulesCache(admin, { activateValidation: false });
+      } catch (error) {
+        console.error("Failed to upgrade CartRules data", { shop: session.shop, error });
       }
     },
   },

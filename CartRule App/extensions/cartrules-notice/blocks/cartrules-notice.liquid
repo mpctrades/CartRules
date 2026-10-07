@@ -1,67 +1,55 @@
 {% comment %}
-  CartRules — product page notice (F5 "warn customers early").
-  Merchant adds this block to the product template from the theme editor.
-  Reads the same `cartrules.rules_cache` shop metafield the checkout
-  Function reads (see app/models/rules.server.js `syncRulesCache`) —
-  requires the metafield definition to have storefront read access, which
-  `ensureRulesCacheMetafieldDefinition` sets up.
+  CartRules — product page notice ("warn shoppers before they add to cart").
+  Merchants add this block to the product template from the theme editor.
+  It inlines the same `cartrules.rules_cache` metafield the checkout Function
+  reads plus this product's data, and assets/cartrules-notice.js runs the
+  shared rule engine (assets/cartrules-engine.js, a copy of the Function's
+  engine) to decide which rules apply — so the notice matches checkout.
 {% endcomment %}
 
 {% assign cache = shop.metafields.cartrules.rules_cache.value %}
-{% assign rendered_notice = false %}
-{% if cache and cache.enabled != false and cache.productNoticesEnabled != false %}
-  {% assign product_gid_suffix = product.id | append: '' %}
-  {% for rule in cache.rules %}
-    {% if rule.ruleType == 'max_quantity' or rule.ruleType == 'no_discount' %}
-      {% assign matches = false %}
-      {% if rule.matchType == 'product_id' %}
-        {% for pid in rule.productIds %}
-          {% assign pid_suffix = pid | split: '/' | last %}
-          {% if pid_suffix == product_gid_suffix %}
-            {% assign matches = true %}
-          {% endif %}
-        {% endfor %}
-      {% endif %}
+{%- capture cartrules_product -%}
+  {"productId":{{ product.id | json }},"title":{{ product.title | json }},"vendor":{{ product.vendor | json }},"productType":{{ product.type | json }},"tags":{{ product.tags | json }},"collections":[{% for c in product.collections %}"gid://shopify/Collection/{{ c.id }}"{% unless forloop.last %},{% endunless %}{% endfor %}],"variantId":{{ product.selected_or_first_available_variant.id | json }},"variants":[{% for v in product.variants %}{{ v.id | json }}{% unless forloop.last %},{% endunless %}{% endfor %}]}
+{%- endcapture -%}
+{%- capture cartrules_context -%}
+  {"customer":{"loggedIn":{% if customer %}true{% else %}false{% endif %},"b2b":{% if customer and customer.b2b? %}true{% else %}false{% endif %},"tags":{% if customer %}{{ customer.tags | json }}{% else %}[]{% endif %}},"country":{{ localization.country.iso_code | json }}}
+{%- endcapture -%}
 
-      {% if matches %}
-        {% assign rendered_notice = true %}
-        <div
-          class="cartrules-notice"
-          {% if rule.ruleType == 'max_quantity' %}data-cartrules-max="{{ rule.maxQuantity | escape }}"{% endif %}
-          style="padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0.5rem; border: 1px solid rgba(var(--color-foreground, 18, 18, 18), 0.25);"
-        >
-          {% if rule.message != blank %}
-            {{ rule.message | escape }}
-          {% elsif rule.ruleType == 'max_quantity' %}
-            Maximum {{ rule.maxQuantity }} per order for this item.
-          {% else %}
-            Discount codes can't be used on this item.
-          {% endif %}
-        </div>
-      {% endif %}
-    {% endif %}
-  {% endfor %}
-{% endif %}
+<div
+  class="cartrules-product-notice"
+  data-cartrules-product-notice
+  data-engine-url="{{ 'cartrules-engine.js' | asset_url }}"
+  {% if request.design_mode %}data-design-mode{% endif %}
+>
+  <script type="application/json" data-cartrules-rules>
+    {% if cache and cache.enabled != false and cache.productNoticesEnabled != false %}{{ cache | json }}{% else %}{"rules":[]}{% endif %}
+  </script>
+  <script type="application/json" data-cartrules-product>{{ cartrules_product }}</script>
+  <script type="application/json" data-cartrules-context>{{ cartrules_context }}</script>
+  <div data-cartrules-messages role="status" aria-live="polite"></div>
 
-{% comment %}
-  Theme editor only: a real, blank storefront must render nothing for a
-  product with no matching rule (that's the correct/expected behavior, not
-  a bug). But in the editor preview merchants need to SEE the block exists
-  and is configured correctly even before any rule targets the product
-  they're previewing — otherwise it looks broken/missing, which is what
-  triggered the App Store review's "widget not visible" rejection.
-{% endcomment %}
-{% if request.design_mode and rendered_notice == false %}
-  <div class="cartrules-notice cartrules-notice--placeholder" style="padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0.5rem; border: 1px dashed rgba(var(--color-foreground, 18, 18, 18), 0.35);">
-    {% if cache %}
-      No CartRules rule applies to this product right now. Add or edit a rule
-      in the CartRules app to see the live notice here.
-    {% else %}
-      CartRules is installed but hasn't synced any rules yet. Create a rule
-      in the CartRules app to activate this notice.
-    {% endif %}
-  </div>
-{% endif %}
+  {% comment %}
+    Theme editor only: show the block exists even when no rule applies to
+    the previewed product (a blank block looked "missing" to reviewers).
+    The script hides this once a real notice renders.
+  {% endcomment %}
+  {% if request.design_mode %}
+    <div
+      class="cartrules-notice cartrules-notice--placeholder"
+      data-cartrules-placeholder
+      style="padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 0.5rem; border: 1px dashed rgba(var(--color-foreground, 18, 18, 18), 0.35);"
+    >
+      {% if cache %}
+        No CartRules rule applies to this product right now. Add or edit a rule in the CartRules app to see the
+        live notice here.
+      {% else %}
+        CartRules is installed but hasn't synced any rules yet. Create a rule in the CartRules app to activate this
+        notice.
+      {% endif %}
+    </div>
+  {% endif %}
+</div>
+<script src="{{ 'cartrules-notice.js' | asset_url }}" type="module"></script>
 
 {% schema %}
 {

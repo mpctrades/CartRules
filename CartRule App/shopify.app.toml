@@ -31,12 +31,6 @@ api_version = "2026-07"
   uri = "/webhooks/app/uninstalled"
   topics = [ "app/uninstalled" ]
 
-  # Keeps tag/collection rules in step with the catalog (App Store
-  # requirement 2.1.4) — see app/routes/webhooks.catalog.jsx.
-  [[webhooks.subscriptions]]
-  uri = "/webhooks/catalog"
-  topics = [ "products/create", "products/update", "products/delete", "collections/update", "collections/delete" ]
-
   # DISABLED until Protected Customer Data access is approved for this app
   # (Partner Dashboard → this app → Distribution → API access). Shopify
   # refuses to even register a subscription to a customer-data-bearing
@@ -70,9 +64,21 @@ api_version = "2026-07"
 # read_validations/write_validations: required to create and enable the
 # checkout Validation that makes Shopify actually RUN the cartrules-validation
 # Function (ensureValidationActive in app/models/rules.server.js).
-scopes = "read_products,read_metaobjects,write_metaobjects,read_metaobject_definitions,write_metaobject_definitions,read_validations,write_validations"
+# read_themes: the Overview detects whether the CartRules theme blocks are
+# installed in the live theme (no "mark as done" guesswork).
+# read_markets: rules can target Shopify Markets (resolved to countries).
+# read_locales: default customer messages follow the store's language.
+scopes = "read_products,read_metaobjects,write_metaobjects,read_metaobject_definitions,write_metaobject_definitions,read_validations,write_validations,read_themes,read_markets,read_locales"
 optional_scopes = [ ]
 use_legacy_install_flow = false
+
+# Storefront activity: the theme blocks report rule hits to
+# /apps/cartrules/events, which Shopify proxies (signed) to /proxy/events —
+# see app/routes/proxy.events.jsx. No customer data is sent.
+[app_proxy]
+url = "https://dev.cartrule.mpctrades.com/proxy"
+subpath = "cartrules"
+prefix = "apps"
 
 [auth]
 redirect_urls = [ "https://dev.cartrule.mpctrades.com/auth/callback" ]

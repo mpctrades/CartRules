@@ -1,163 +1,67 @@
-import { useState } from "react";
 import { json } from "@remix-run/node";
-import { useFetcher, useLoaderData, useNavigate } from "@remix-run/react";
-import {
-  Page,
-  Card,
-  BlockStack,
-  Button,
-  TextField,
-  Select,
-  Text,
-  Banner,
-} from "@shopify/polaris";
-import { authenticate } from "../shopify.server";
-import { listRules, updateRule, RulesCacheSyncError } from "../models/rules.server";
-import { RULE_TYPES, TARGET_TYPES, isValidMaxQuantity } from "../models/ruleConstants";
-import RuleTypeCards from "../components/RuleTypeCards";
-import { redirectWithToast } from "../utils/toastRedirect.server";
-import { Eyebrow } from "../components/brand";
+import { useLoaderData, useNavigate } from "@remix-run/react";
+import { Button } from "@shopify/polaris";
+import { ArrowLeftIcon } from "@shopify/polaris-icons";
+import { loadAppContext } from "../models/context.server";
+import { getRule } from "../models/rules.server";
+import { loadRuleFormOptions, saveRuleFromForm, formDefaults } from "../models/ruleForm.server";
+import RuleForm from "../components/RuleForm";
+import { AppPage, StatusBadge } from "../components/ui";
+import { getScheduleStatus } from "../models/ruleDisplay";
 
-// Same 3-step shape as app.rules.new.jsx, pre-filled for editing.
 export const loader = async ({ request, params }) => {
-  const { admin } = await authenticate.admin(request);
-  const rules = await listRules(admin);
-  const gid = decodeURIComponent(params.id);
-  const rule = rules.find((r) => r.id === gid);
+  const ctx = await loadAppContext(request, { rules: false });
+  const rule = await getRule(ctx.admin, decodeURIComponent(params.id));
   if (!rule) throw new Response("Rule not found", { status: 404 });
-  return json({ rule });
+  const options = await loadRuleFormOptions(ctx.admin);
+  return json({
+    rule,
+    plan: ctx.plan.name,
+    timezone: ctx.timezone,
+    currency: ctx.currency,
+    options,
+    defaultMessages: formDefaults(ctx.settings),
+  });
 };
 
 export const action = async ({ request, params }) => {
-  const { admin } = await authenticate.admin(request);
+  const ctx = await loadAppContext(request, { rules: false, settings: false });
+  const existing = await getRule(ctx.admin, decodeURIComponent(params.id));
+  if (!existing) return json({ ok: false, error: "This rule no longer exists." }, { status: 404 });
   const formData = await request.formData();
-  const gid = decodeURIComponent(params.id);
-
-  let title;
-  try {
-    // Title, target and status come from the stored rule, not the form: the
-    // edit screen can't change them, and trusting a posted `status` would let
-    // a crafted request activate a rule past the Free plan's active-rule cap
-    // (only the Rules page toggle checks that cap).
-    const existing = (await listRules(admin)).find((r) => r.id === gid);
-    if (!existing) return json({ ok: false, error: "This rule no longer exists." }, { status: 404 });
-    title = existing.title;
-    await updateRule(admin, gid, {
-      title: existing.title,
-      ruleType: formData.get("ruleType"),
-      targetType: existing.targetType,
-      targetValue: existing.targetValue,
-      maxQuantity: formData.get("maxQuantity") ? Number(formData.get("maxQuantity")) : null,
-      message: formData.get("message"),
-      status: existing.status,
-    });
-  } catch (error) {
-    if (error instanceof Response) throw error;
-    if (error instanceof RulesCacheSyncError) {
-      // The edit itself was saved — don't tell the merchant it wasn't.
-      console.error("Rule updated but checkout sync failed", error.cause);
-      return redirectWithToast(
-        "/app/rules",
-        "Rule saved, but checkout couldn't be updated yet. Pause and resume the rule to retry.",
-        { isError: true },
-      );
-    }
-    console.error("Failed to update rule", { id: gid, error });
-    return json({ ok: false, error: "We couldn't save your changes. Please try again." });
-  }
-  return redirectWithToast("/app/rules", `Rule "${title || "Untitled rule"}" updated`);
+  return saveRuleFromForm({ admin: ctx.admin, billing: ctx.billing, shop: ctx.shop, formData, existing });
 };
 
 export default function EditRule() {
-  const { rule } = useLoaderData();
+  const { rule, plan, timezone, currency, options, defaultMessages } = useLoaderData();
   const navigate = useNavigate();
-  const fetcher = useFetcher();
-
-  const [ruleType, setRuleType] = useState(rule.ruleType);
-  const [targetType] = useState(rule.targetType); // target type is fixed once created in v1
-  const [targetValue] = useState(rule.targetValue);
-  const [maxQuantity, setMaxQuantity] = useState(String(rule.maxQuantity ?? 1));
-  const [message, setMessage] = useState(rule.message);
-
-  const maxQuantityError =
-    ruleType === RULE_TYPES.MAX_QUANTITY && !isValidMaxQuantity(maxQuantity) ? "Enter a whole number of 1 or more." : undefined;
-
-  const save = () => {
-    fetcher.submit({ ruleType, maxQuantity, message }, { method: "post" });
-  };
-
   return (
-    <Page title="Edit rule" backAction={{ content: "Rules", onAction: () => navigate("/app/rules") }}>
-      <BlockStack gap="400">
-        <Eyebrow>Edit rule</Eyebrow>
-        <Card>
-          <BlockStack gap="200">
-            <Text as="h2" variant="headingMd">
-              Rule type
-            </Text>
-            <RuleTypeCards value={ruleType} onChange={setRuleType} />
-            {ruleType === RULE_TYPES.MAX_QUANTITY ? (
-              <TextField
-                label="Maximum units per order"
-                type="number"
-                min={1}
-                value={maxQuantity}
-                onChange={setMaxQuantity}
-                error={maxQuantityError}
-                autoComplete="off"
-              />
-            ) : null}
-          </BlockStack>
-        </Card>
-
-        <Card>
-          <BlockStack gap="200">
-            <Text as="h2" variant="headingMd">
-              Applies to
-            </Text>
-            <Select
-              label="Target type (fixed after creation in v1 — delete and recreate to retarget)"
-              disabled
-              options={[
-                { label: "Tag", value: TARGET_TYPES.TAG },
-                { label: "Collection", value: TARGET_TYPES.COLLECTION },
-                { label: "Individual product", value: TARGET_TYPES.PRODUCT },
-              ]}
-              value={targetType}
-            />
-            <TextField
-              label={targetType === TARGET_TYPES.TAG ? "Tag" : "Target"}
-              value={targetType === TARGET_TYPES.TAG ? targetValue : rule.title || targetValue}
-              disabled
-              autoComplete="off"
-            />
-          </BlockStack>
-        </Card>
-
-        <Card>
-          <BlockStack gap="200">
-            <Text as="h2" variant="headingMd">
-              Message shown to the customer
-            </Text>
-            <TextField
-              label="Message"
-              value={message}
-              onChange={setMessage}
-              multiline={3}
-              autoComplete="off"
-            />
-            {fetcher.data?.ok === false ? <Banner tone="critical">{fetcher.data.error}</Banner> : null}
-            <Button
-              variant="primary"
-              loading={fetcher.state !== "idle"}
-              disabled={Boolean(maxQuantityError)}
-              onClick={save}
-            >
-              Save changes
-            </Button>
-          </BlockStack>
-        </Card>
-      </BlockStack>
-    </Page>
+    <AppPage
+      title={rule.title || "Edit rule"}
+      subtitle="Change anything below — checkout is updated as soon as you save."
+      back={
+        <Button variant="tertiary" icon={ArrowLeftIcon} onClick={() => navigate("/app/rules")}>
+          Rules
+        </Button>
+      }
+      actions={
+        <>
+          <StatusBadge status={getScheduleStatus(rule)} />
+          <Button url={`/app/test?ruleId=${encodeURIComponent(rule.id)}`}>Test rule</Button>
+        </>
+      }
+    >
+      <RuleForm
+        key={rule.id}
+        mode="edit"
+        initial={rule}
+        existingStatus={rule.status}
+        plan={plan}
+        timezone={timezone}
+        currency={currency}
+        options={options}
+        defaultMessages={defaultMessages}
+      />
+    </AppPage>
   );
 }

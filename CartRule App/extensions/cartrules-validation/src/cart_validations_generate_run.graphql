@@ -1,23 +1,20 @@
 # Input query for the cart.validations.generate.run target.
 #
-# There's no `product.tags` field in this Function schema (only
-# `hasAnyTag`/`hasTags`, which need a fixed tag list at query-authoring
-# time — no good for merchant-defined, runtime rules). So tag- and
-# collection-targeted rules are pre-expanded into product IDs by the admin
-# app before caching (see app/models/rules.server.js syncRulesCache) and
-# every rule this Function sees is matchType "product_id" — only
-# product.id is needed here.
-query Input {
+# Tag, collection and customer-tag rules are matched here at checkout with
+# hasTags / inCollections, fed by input query variables. The admin app
+# writes the variable values (every tag/collection any active rule asks
+# about) to the `$app:cartrules/function_variables` metafield on the
+# Validation — see syncRulesCache in app/models/rules.server.js and
+# [extensions.input.variables] in shopify.extension.toml. The rules
+# themselves stay in the shop's `cartrules.rules_cache` metafield, which the
+# theme blocks read too.
+query Input($productTags: [String!], $collectionIds: [ID!], $customerTags: [String!]) {
   cart {
     lines {
       quantity
-      merchandise {
-        __typename
-        ... on ProductVariant {
-          id
-          product {
-            id
-          }
+      cost {
+        subtotalAmount {
+          amount
         }
       }
       discountAllocations {
@@ -25,6 +22,51 @@ query Input {
           amount
         }
       }
+      merchandise {
+        __typename
+        ... on ProductVariant {
+          id
+          product {
+            id
+            title
+            vendor
+            productType
+            hasTags(tags: $productTags) {
+              tag
+              hasTag
+            }
+            inCollections(ids: $collectionIds) {
+              collectionId
+              isMember
+            }
+          }
+        }
+      }
+    }
+    cost {
+      subtotalAmount {
+        amount
+        currencyCode
+      }
+    }
+    buyerIdentity {
+      isAuthenticated
+      customer {
+        hasTags(tags: $customerTags) {
+          tag
+          hasTag
+        }
+      }
+      purchasingCompany {
+        company {
+          id
+        }
+      }
+    }
+  }
+  localization {
+    country {
+      isoCode
     }
   }
   shop {

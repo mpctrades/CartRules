@@ -4,6 +4,10 @@ import { RemixServer } from "@remix-run/react";
 import { createReadableStreamFromReadable } from "@remix-run/node";
 import { isbot } from "isbot";
 import { addDocumentResponseHeaders } from "./shopify.server";
+import { startScheduler } from "./scheduler.server";
+
+// Scheduled rules and notifications (see app/scheduler.server.js).
+startScheduler();
 
 export const streamTimeout = 5000;
 

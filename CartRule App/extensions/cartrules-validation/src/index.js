@@ -3,119 +3,103 @@
 // Target: cart.validations.generate.run
 // Docs: https://shopify.dev/docs/api/functions/latest/cart-and-checkout-validation
 //
-// This function does NOT read Shopify directly for rules. It reads a single
-// JSON blob cached in a shop metafield (namespace "cartrules", key
-// "rules_cache") that the Remix admin app rebuilds on every rule change —
-// see app/models/rules.server.js `syncRulesCache`. Metaobject definitions
-// aren't cheaply queryable from a Function's static input query, and this
-// schema's Product has no plain `tags` list (only `hasAnyTag`/`hasTags`,
-// which need a fixed tag list at query-authoring time), so the admin app
-// pre-resolves everything — including expanding tags and collections into
-// product ID lists — before the Function ever runs. Every rule this
-// function sees is matchType "product_id".
+// Rules come from the `cartrules.rules_cache` shop metafield, which the admin
+// app rebuilds on every rule or settings change (buildRulesCache in
+// app/models/rules.server.js). Tag/collection/customer-tag membership comes
+// from hasTags/inCollections, whose tag and collection lists are input query
+// variables (see cart_validations_generate_run.graphql). The decision itself
+// is made by ./engine.js — the same code the admin app's rule simulator runs.
+
+import { evaluateCart } from "./engine";
 
 /**
  * @param {any} input - shape defined by cart_validations_generate_run.graphql
- * @returns {{ operations: Array<{ validationAdd: { errors: Array<{ message: string, target: string }> } }> }}
  */
 export function cartValidationsGenerateRun(input) {
   const cacheRaw = input?.shop?.metafield?.value;
-  if (!cacheRaw) {
-    return { operations: [] };
-  }
+  if (!cacheRaw) return { operations: [] };
 
-  let rules = [];
+  let cache;
   try {
-    const parsed = JSON.parse(cacheRaw);
-    // `enabled` is the merchant's shop-wide "CartRules protection" switch
-    // (app/routes/app.settings.jsx) — undefined counts as enabled so this
-    // stays backward-compatible with a cache written before Settings existed.
-    if (parsed.enabled === false) {
-      return { operations: [] };
-    }
-    rules = Array.isArray(parsed.rules) ? parsed.rules : [];
+    cache = JSON.parse(cacheRaw);
   } catch (_err) {
-    // A malformed cache should never break checkout for every merchant on
-    // this app — fail open (no validation errors) instead of fail closed.
+    // A malformed cache must never break checkout — fail open.
     return { operations: [] };
   }
+  // `enabled` is the shop-wide "CartRules protection" switch in Settings.
+  if (!cache || cache.enabled === false) return { operations: [] };
+  const rules = (Array.isArray(cache.rules) ? cache.rules : []).map(fromLegacy);
+  if (rules.length === 0) return { operations: [] };
 
-  if (rules.length === 0) {
-    return { operations: [] };
-  }
+  const { violations } = evaluateCart(toEngineCart(input), rules, { conflictMode: cache.conflictMode });
+  if (violations.length === 0) return { operations: [] };
 
-  const maxQuantityRules = rules.filter((r) => r.ruleType === "max_quantity");
-  const noDiscountRules = rules.filter((r) => r.ruleType === "no_discount");
-
-  const errors = [];
-
-  // F1/F5 — max quantity per order, counted per PRODUCT across all its cart
-  // lines: two variants of the same product (e.g. Small ×1 + Large ×1) are 2
-  // of that item, not 1 each.
-  const quantityByProduct = new Map();
-  for (const line of input.cart.lines) {
-    const merchandise = line.merchandise;
-    const productId = merchandise && merchandise.__typename === "ProductVariant" ? merchandise.product?.id : null;
-    if (!productId) continue;
-    quantityByProduct.set(productId, (quantityByProduct.get(productId) ?? 0) + line.quantity);
-  }
-  for (const rule of maxQuantityRules) {
-    if (rule.matchType !== "product_id" || !Array.isArray(rule.productIds) || !rule.maxQuantity) continue;
-    for (const productId of rule.productIds) {
-      if ((quantityByProduct.get(productId) ?? 0) > rule.maxQuantity) {
-        errors.push({
-          message: rule.message || `Maximum ${rule.maxQuantity} per order for this item.`,
-          target: "$.cart",
-        });
-      }
-    }
-  }
-
-  for (const line of input.cart.lines) {
-    const merchandise = line.merchandise;
-    const product = merchandise && merchandise.__typename === "ProductVariant" ? merchandise.product : null;
-    if (!product) continue;
-
-    const productId = product.id;
-
-    const matchesRule = (rule) => {
-      return rule.matchType === "product_id" && Array.isArray(rule.productIds) && rule.productIds.includes(productId);
-    };
-
-    // F2 — no discount codes.
-    // Simplification (documented, not accidental): this blocks on ANY
-    // discount allocation on the line, not only discount-code discounts —
-    // the input query doesn't expose enough of the DiscountApplication union
-    // to safely distinguish "code" vs "automatic" vs "manual" in every API
-    // version. For CartRules' actual use case (protect margin on excluded
-    // products) that's the intended, conservative behavior. If a merchant
-    // needs automatic discounts to still apply, that's a documented v2 gap.
-    const hasDiscount = (line.discountAllocations?.length ?? 0) > 0;
-    if (hasDiscount) {
-      for (const rule of noDiscountRules) {
-        if (matchesRule(rule)) {
-          errors.push({
-            message: rule.message || "A discount code cannot be applied to this item.",
-            target: "$.cart",
-          });
-        }
-      }
-    }
-  }
-
-  if (errors.length === 0) {
-    return { operations: [] };
-  }
-
-  // One rule over several cart products (e.g. a collection limit) would
-  // otherwise show the same message once per product at checkout.
+  // Settings → Storefront → "Checkout messages" off: block with one neutral
+  // message instead of each rule's own wording.
+  const generic = cache.checkoutMessagesEnabled === false;
+  // One rule over several products would otherwise repeat the same message.
   const seen = new Set();
-  const unique = errors.filter((e) => {
-    const key = `${e.target}|${e.message}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  const errors = [];
+  for (const v of violations) {
+    const message = generic ? cache.genericMessage || "Your cart doesn't meet this store's purchase rules." : v.message;
+    if (!message || seen.has(message)) continue;
+    seen.add(message);
+    errors.push({ message, target: "$.cart" });
+  }
+  return { operations: [{ validationAdd: { errors } }] };
+}
 
-  return { operations: [{ validationAdd: { errors: unique } }] };
+// Caches written before rules v2 ({ ruleType, maxQuantity, productIds }) stay
+// enforced until the app rewrites them on the merchant's next visit.
+function fromLegacy(rule) {
+  if (!rule || rule.type || !rule.ruleType) return rule;
+  return {
+    id: rule.id,
+    type: rule.ruleType,
+    value: rule.maxQuantity,
+    msg: rule.message,
+    target: { type: "product", values: Array.isArray(rule.productIds) ? rule.productIds : [] },
+  };
+}
+
+function trueTags(list) {
+  return (list || []).filter((t) => t.hasTag).map((t) => String(t.tag).toLowerCase());
+}
+
+export function toEngineCart(input) {
+  const cart = input?.cart || {};
+  const lines = [];
+  for (const line of cart.lines || []) {
+    const merchandise = line.merchandise;
+    if (!merchandise || merchandise.__typename !== "ProductVariant" || !merchandise.product) continue;
+    const product = merchandise.product;
+    lines.push({
+      productId: product.id,
+      variantId: merchandise.id,
+      title: product.title,
+      vendor: product.vendor,
+      productType: product.productType,
+      tags: trueTags(product.hasTags),
+      collections: (product.inCollections || []).filter((c) => c.isMember).map((c) => c.collectionId),
+      quantity: line.quantity,
+      subtotal: Number(line.cost?.subtotalAmount?.amount) || 0,
+      // Any discount allocation counts — the input can't reliably tell a
+      // code from an automatic discount (see the Block discount rule's help text).
+      hasDiscount: (line.discountAllocations?.length ?? 0) > 0,
+    });
+  }
+  const buyer = cart.buyerIdentity;
+  const subtotal = Number(cart.cost?.subtotalAmount?.amount);
+  return {
+    lines,
+    customer: {
+      loggedIn: Boolean(buyer?.isAuthenticated),
+      b2b: Boolean(buyer?.purchasingCompany?.company?.id),
+      tags: trueTags(buyer?.customer?.hasTags),
+    },
+    country: input?.localization?.country?.isoCode ?? null,
+    subtotal: Number.isFinite(subtotal) ? subtotal : 0,
+    currency: cart.cost?.subtotalAmount?.currencyCode ?? null,
+    discountCode: null,
+  };
 }

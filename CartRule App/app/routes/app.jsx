@@ -3,10 +3,13 @@ import { boundary } from "@shopify/shopify-app-remix/server";
 import { AppProvider } from "@shopify/shopify-app-remix/react";
 import { NavMenu } from "@shopify/app-bridge-react";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
+import cartrulesStyles from "../styles/cartrules.css?url";
 import { authenticate } from "../shopify.server";
-import { ORDER_ACTIVITY_ENABLED } from "../utils/features";
 
-export const links = () => [{ rel: "stylesheet", href: polarisStyles }];
+export const links = () => [
+  { rel: "stylesheet", href: polarisStyles },
+  { rel: "stylesheet", href: cartrulesStyles },
+];
 
 export const loader = async ({ request }) => {
   await authenticate.admin(request);
@@ -21,16 +24,16 @@ export default function App() {
     // App Bridge <script> — app/root.jsx already loads it (with the API key)
     // as the first script in <head>. The app is still fully embedded.
     <AppProvider isEmbeddedApp={false} apiKey={apiKey}>
-      {/* Analytics is intentionally not linked yet — it needs real tracking
-          data beyond what the Activity page already shows before it earns
-          its own nav item. Everything else in the target nav is built. */}
+      {/* App Bridge's nav menu has no separators — Plan & billing and Help &
+          support are kept last so they read as the secondary group. */}
       <NavMenu>
         <Link to="/app" rel="home">
           Overview
         </Link>
         <Link to="/app/rules">Rules</Link>
         <Link to="/app/templates">Templates</Link>
-        {ORDER_ACTIVITY_ENABLED ? <Link to="/app/activity">Activity</Link> : null}
+        <Link to="/app/activity">Activity</Link>
+        <Link to="/app/analytics">Analytics</Link>
         <Link to="/app/settings">Settings</Link>
         <Link to="/app/billing">Plan & billing</Link>
         <Link to="/app/help">Help & support</Link>

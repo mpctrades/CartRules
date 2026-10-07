@@ -9,12 +9,18 @@ uid = "1e531093-4272-5a7b-bdea-5c4a6392c5ba9ec20e65"
 name = "CartRules validation"
 handle = "cartrules-validation"
 type = "function"
-description = "Blocks checkout when a max-quantity or no-discount-code rule is violated."
+description = "Blocks checkout when a CartRules rule is violated."
 
   [[extensions.targeting]]
   target = "cart.validations.generate.run"
   input_query = "src/cart_validations_generate_run.graphql"
   export = "cart-validations-generate-run"
+
+# Values for the input query's $productTags / $collectionIds / $customerTags,
+# written to the Validation by syncRulesCache (app/models/rules.server.js).
+[extensions.input.variables]
+namespace = "$app:cartrules"
+key = "function_variables"
 
 [extensions.build]
 command = ""
