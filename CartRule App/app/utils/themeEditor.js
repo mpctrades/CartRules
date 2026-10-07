@@ -16,7 +16,7 @@ function editorLink(shop, { template, handle, target }) {
   return `https://${shop}/admin/themes/current/editor?${params.toString()}`;
 }
 
-/** Product template, "Max quantity notice" block, inside the main product section. */
+/** Product template, "Product rule notice" block, inside the main product section. */
 export function getThemeEditorDeepLink(shop) {
   return editorLink(shop, { template: "product", handle: "cartrules-notice", target: "mainSection" });
 }

@@ -13,19 +13,18 @@ import {
   Box,
   ProgressBar,
   Badge,
-  List,
   Banner,
 } from "@shopify/polaris";
 import { ChartLineIcon, CartDiscountIcon, AlertTriangleIcon, ShieldCheckMarkIcon } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import { listRules, getSetupFlags, setSetupFlag, getCheckoutEnforcement, ensureValidationActive } from "../models/rules.server";
-import { getThemeEditorDeepLink } from "../utils/themeEditor";
+import { getCartThemeEditorDeepLink, getThemeEditorDeepLink } from "../utils/themeEditor";
 import { getKpis, getActivitySeries, getActivityFeed, hasAnyEvent } from "../models/events.server";
 import { getSettings } from "../models/settings.server";
 import { RULE_STATUS } from "../models/ruleConstants";
 import { useFlashToast } from "../utils/useFlashToast";
 import { useActionToast } from "../utils/useActionToast";
-import { Eyebrow, IconChip, BRAND_ORANGE } from "../components/brand";
+import { Eyebrow, IconChip, StepBadge, BRAND_ORANGE } from "../components/brand";
 import { ORDER_ACTIVITY_ENABLED } from "../utils/features";
 
 const NO_KPIS = {
@@ -218,16 +217,80 @@ function relativeTime(iso) {
 }
 
 const CHECKLIST_STEPS = [
-  { key: "createdRule", label: "Create your first rule" },
-  { key: "activatedRule", label: "Activate a rule" },
-  { key: "addedStorefrontMessages", label: "Add storefront messages" },
-  { key: "testedRule", label: "Test your first rule" },
+  {
+    key: "createdRule",
+    label: "Create your first rule",
+    description: "Pick a template or start from scratch: limit quantities or block discount codes on chosen products.",
+  },
+  {
+    key: "activatedRule",
+    label: "Activate a rule",
+    description: "Only active rules are enforced at checkout. Turn one on from the Rules page.",
+  },
+  {
+    key: "addedStorefrontMessages",
+    label: "Show rule messages on your storefront",
+    description:
+      "Tell shoppers about a limit before they reach checkout. Each button opens your theme editor with the CartRules block already added; click Save there to publish it.",
+  },
+  {
+    key: "testedRule",
+    label: "Test your first rule",
+    description: "Use “Test rule” on the Rules page to see exactly what a customer would be told at checkout.",
+  },
 ];
+
+function StepStatus({ done, current, n }) {
+  if (done) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: 24,
+          height: 24,
+          borderRadius: "50%",
+          background: "var(--p-color-bg-fill-success, #29845a)",
+          color: "#fff",
+          fontSize: 13,
+          fontWeight: 700,
+          flexShrink: 0,
+        }}
+        aria-label="Done"
+      >
+        ✓
+      </div>
+    );
+  }
+  if (current) return <StepBadge n={n} />;
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: 24,
+        height: 24,
+        borderRadius: "50%",
+        border: "1.5px dashed var(--p-color-border, #8a8a8a)",
+        color: "var(--p-color-text-secondary, #616161)",
+        fontSize: 12,
+        fontWeight: 600,
+        flexShrink: 0,
+      }}
+    >
+      {n}
+    </div>
+  );
+}
 
 function SetupChecklist({ checklist, shop, navigate, submit }) {
   const [expanded, setExpanded] = useState(false);
   const doneCount = CHECKLIST_STEPS.filter((s) => checklist[s.key]).length;
   const allDone = doneCount === CHECKLIST_STEPS.length;
+  // The first unfinished step is the one we expand and point the merchant at.
+  const currentKey = CHECKLIST_STEPS.find((s) => !checklist[s.key])?.key;
 
   if (allDone && !expanded) {
     return (
@@ -244,75 +307,118 @@ function SetupChecklist({ checklist, shop, navigate, submit }) {
     );
   }
 
-  const stepAction = (key) => {
-    if (key === "createdRule" || key === "activatedRule") return () => navigate("/app/rules");
-    if (key === "addedStorefrontMessages")
-      return () => window.open(getThemeEditorDeepLink(shop), "_blank");
+  const startAction = (key) => {
+    if (key === "createdRule") return () => navigate("/app/rules/new");
+    if (key === "addedStorefrontMessages") return () => window.open(getThemeEditorDeepLink(shop), "_blank");
     return () => navigate("/app/rules");
   };
 
+  const stepActions = (key, primary) => {
+    const variant = primary ? "primary" : undefined;
+    switch (key) {
+      case "createdRule":
+        return (
+          <InlineStack gap="200">
+            <Button variant={variant} onClick={() => navigate("/app/rules/new")}>
+              Create rule
+            </Button>
+            <Button onClick={() => navigate("/app/templates")}>Browse templates</Button>
+          </InlineStack>
+        );
+      case "activatedRule":
+        return (
+          <InlineStack gap="200">
+            <Button variant={variant} onClick={() => navigate("/app/rules")}>
+              Go to rules
+            </Button>
+          </InlineStack>
+        );
+      case "addedStorefrontMessages":
+        return (
+          <InlineStack gap="200" blockAlign="center">
+            <Button variant={variant} onClick={() => window.open(getThemeEditorDeepLink(shop), "_blank")}>
+              Add product page notice
+            </Button>
+            <Button onClick={() => window.open(getCartThemeEditorDeepLink(shop), "_blank")}>
+              Add cart quantity guard
+            </Button>
+            <Button
+              variant="plain"
+              onClick={() => submit({ intent: "markStorefrontMessagesAdded" }, { method: "post" })}
+            >
+              Mark as done
+            </Button>
+          </InlineStack>
+        );
+      default:
+        return (
+          <InlineStack gap="200">
+            <Button variant={variant} onClick={() => navigate("/app/rules")}>
+              Test a rule
+            </Button>
+          </InlineStack>
+        );
+    }
+  };
+
   return (
-    <Card>
-      <BlockStack gap="300">
-        <InlineStack align="space-between">
-          <Text as="h2" variant="headingMd">
-            CartRules setup
-          </Text>
-          <Text as="span" tone="subdued">
-            {doneCount} of {CHECKLIST_STEPS.length} complete
-          </Text>
-        </InlineStack>
-        <ProgressBar progress={(doneCount / CHECKLIST_STEPS.length) * 100} size="small" tone="success" />
-        <BlockStack gap="200">
-          {CHECKLIST_STEPS.map((step) => {
-            const done = checklist[step.key];
-            return (
-              <InlineStack key={step.key} align="space-between" blockAlign="center">
-                <InlineStack gap="200" blockAlign="center">
-                  <span
-                    style={{
-                      fontSize: 18,
-                      lineHeight: 1,
-                      color: done ? "var(--p-color-icon-success, #008060)" : "var(--p-color-text-secondary, #6b7177)",
-                    }}
-                  >
-                    {done ? "✓" : "○"}
-                  </span>
-                  <Text as="span" tone={done ? undefined : "subdued"}>
-                    {step.label}
-                  </Text>
-                </InlineStack>
-                {!done ? (
-                  <Button variant="plain" onClick={stepAction(step.key)}>
-                    {step.key === "addedStorefrontMessages" ? "Open theme editor" : "Go"}
-                  </Button>
-                ) : null}
-              </InlineStack>
-            );
-          })}
-          {!checklist.addedStorefrontMessages ? (
-            <Box paddingInlineStart="600">
-              <BlockStack gap="200">
-                <List type="number">
-                  <List.Item>
-                    Click "Open theme editor" above — it opens with the CartRules product-page block already added.
-                  </List.Item>
-                  <List.Item>Click Save (top right) to publish it live.</List.Item>
-                  <List.Item>
-                    Optional: on your cart page template, click Add block → Apps → CartRules Cart quantity guard.
-                  </List.Item>
-                </List>
-                <Button
-                  variant="plain"
-                  onClick={() => submit({ intent: "markStorefrontMessagesAdded" }, { method: "post" })}
-                >
-                  I've added the storefront message block
-                </Button>
-              </BlockStack>
-            </Box>
-          ) : null}
+    <Card padding="0">
+      <Box padding="400">
+        <BlockStack gap="300">
+          <InlineStack align="space-between" blockAlign="center">
+            <BlockStack gap="100">
+              <Text as="h2" variant="headingMd">
+                Get started with CartRules
+              </Text>
+              <Text as="p" tone="subdued">
+                Finish these steps so your rules protect checkout and shoppers see them in your store.
+              </Text>
+            </BlockStack>
+            <Badge tone={allDone ? "success" : undefined}>{`${doneCount} of ${CHECKLIST_STEPS.length} done`}</Badge>
+          </InlineStack>
+          <ProgressBar progress={(doneCount / CHECKLIST_STEPS.length) * 100} size="small" tone="success" />
         </BlockStack>
-      </BlockStack>
+      </Box>
+      {CHECKLIST_STEPS.map((step, i) => {
+        const done = !!checklist[step.key];
+        const current = step.key === currentKey;
+        return (
+          <Box
+            key={step.key}
+            paddingInline="400"
+            paddingBlock="300"
+            borderBlockStartWidth="025"
+            borderColor="border"
+            background={current ? "bg-surface-secondary" : undefined}
+          >
+            <InlineStack gap="300" wrap={false} blockAlign="start">
+              <StepStatus done={done} current={current} n={i + 1} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <BlockStack gap="200">
+                  <InlineStack align="space-between" blockAlign="center" gap="200">
+                    <Text as="h3" fontWeight={current ? "semibold" : "regular"} tone={done ? "subdued" : undefined}>
+                      {step.label}
+                    </Text>
+                    {!done && !current ? (
+                      <Button variant="plain" onClick={startAction(step.key)}>
+                        Start
+                      </Button>
+                    ) : null}
+                  </InlineStack>
+                  {current ? (
+                    <>
+                      <Text as="p" tone="subdued">
+                        {step.description}
+                      </Text>
+                      {stepActions(step.key, true)}
+                    </>
+                  ) : null}
+                </BlockStack>
+              </div>
+            </InlineStack>
+          </Box>
+        );
+      })}
     </Card>
   );
 }
