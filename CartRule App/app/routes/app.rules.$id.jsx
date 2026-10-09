@@ -22,7 +22,8 @@ import { Eyebrow } from "../components/brand";
 export const loader = async ({ request, params }) => {
   const { admin } = await authenticate.admin(request);
   const rules = await listRules(admin);
-  const gid = decodeURIComponent(params.id);
+  // Remix already decodes params; decoding again throws URIError on a "%".
+  const gid = params.id;
   const rule = rules.find((r) => r.id === gid);
   if (!rule) throw new Response("Rule not found", { status: 404 });
   return json({ rule });
@@ -31,7 +32,8 @@ export const loader = async ({ request, params }) => {
 export const action = async ({ request, params }) => {
   const { admin } = await authenticate.admin(request);
   const formData = await request.formData();
-  const gid = decodeURIComponent(params.id);
+  // Remix already decodes params; decoding again throws URIError on a "%".
+  const gid = params.id;
 
   let title;
   try {

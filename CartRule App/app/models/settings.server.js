@@ -9,7 +9,7 @@ import { RULE_TYPES } from "./ruleConstants";
 const SETTINGS_KEY = "settings";
 
 export const DEFAULT_MESSAGES = {
-  [RULE_TYPES.NO_DISCOUNT]: "This item is already at its best price - discount codes do not apply.",
+  [RULE_TYPES.NO_DISCOUNT]: "Discounts can't be applied to this item. Remove the discount to continue.",
   [RULE_TYPES.MAX_QUANTITY]: "There is a maximum quantity for this item per order.",
 };
 

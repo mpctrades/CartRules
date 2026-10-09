@@ -102,11 +102,23 @@ async function handleRuleAction({ request }) {
   // just to look up a string for the toast message.
   const title = formData.get("title") || "Rule";
 
+  // Only ever act on this app's own rules: write_metaobjects reaches every
+  // metaobject in the shop, so a posted id must be one of ours.
+  if (["toggle", "delete", "duplicate"].includes(intent)) {
+    const rules = await listRules(admin);
+    if (!rules.some((r) => r.id === id)) {
+      return json({ ok: false, toast: "That rule no longer exists.", toastError: true });
+    }
+  }
+
   if (intent === "enableValidation") {
     await ensureValidationActive(admin);
     return json({ ok: true, toast: "CartRules is now enforced at checkout" });
   } else if (intent === "toggle") {
     const nextStatus = formData.get("nextStatus");
+    if (!Object.values(RULE_STATUS).includes(nextStatus)) {
+      return json({ ok: false, toast: "Unknown rule status.", toastError: true });
+    }
     // Same Free-plan cap as rule creation (app.rules.new.jsx) — without this,
     // a Free shop could create paused rules and then activate them all here.
     if (nextStatus === RULE_STATUS.ACTIVE) {

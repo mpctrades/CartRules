@@ -95,7 +95,7 @@ export function cartValidationsGenerateRun(input) {
       for (const rule of noDiscountRules) {
         if (matchesRule(rule)) {
           errors.push({
-            message: rule.message || "A discount code cannot be applied to this item.",
+            message: rule.message || "Discounts can't be applied to this item. Remove the discount to continue.",
             target: "$.cart",
           });
         }

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { json, redirect } from "@remix-run/node";
+import { json } from "@remix-run/node";
 import { useLoaderData, useNavigate, useSearchParams } from "@remix-run/react";
 import { Page, Card, BlockStack, InlineStack, Text, Select, Box, EmptyState, TextField, Button } from "@shopify/polaris";
 import { AlertTriangleIcon, CartDiscountIcon } from "@shopify/polaris-icons";
@@ -31,7 +31,7 @@ const RULE_TYPE_FILTERS = [
 // Full activity history — every rule that has actually fired, most recent
 // first. See app/models/events.server.js for what's recorded and why.
 export const loader = async ({ request }) => {
-  const { admin, session } = await authenticate.admin(request);
+  const { admin, session, redirect } = await authenticate.admin(request);
   // No order activity is recorded yet — see app/utils/features.js.
   if (!ORDER_ACTIVITY_ENABLED) throw redirect("/app/rules");
   const url = new URL(request.url);

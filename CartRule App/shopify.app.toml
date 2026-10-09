@@ -6,7 +6,7 @@ application_url = "https://dev.cartrule.mpctrades.com"
 embedded = true
 
 [build]
-automatically_update_urls_on_dev = true
+automatically_update_urls_on_dev = false
 
 [webhooks]
 api_version = "2026-07"
@@ -30,6 +30,12 @@ api_version = "2026-07"
   [[webhooks.subscriptions]]
   uri = "/webhooks/app/uninstalled"
   topics = [ "app/uninstalled" ]
+
+  # Re-applies the Free plan's active-rule cap when a subscription ends
+  # outside the app (cancelled, declined, frozen).
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/subscriptions_update"
+  topics = [ "app_subscriptions/update" ]
 
   # Keeps tag/collection rules in step with the catalog (App Store
   # requirement 2.1.4) — see app/routes/webhooks.catalog.jsx.

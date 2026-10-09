@@ -38,7 +38,7 @@ const TEMPLATES = [
     badge: "Block discount codes",
     description: "Exclude products from promotional discounts to protect margin.",
     ruleType: RULE_TYPES.NO_DISCOUNT,
-    message: "This item is already at its best price — discount codes do not apply.",
+    message: "Discounts can't be applied to this item. Remove the discount to continue.",
     category: "discount",
   },
   {

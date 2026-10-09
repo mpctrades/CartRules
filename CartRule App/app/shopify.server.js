@@ -7,7 +7,7 @@ import {
 } from "@shopify/shopify-app-remix/server";
 import { RefreshingPrismaSessionStorage } from "./session-storage.server";
 import prisma from "./db.server";
-import { ensureValidationActive, getValidation } from "./models/rules.server";
+import { enforceFreePlanLimitIfUnpaid, ensureValidationActive, getValidation } from "./models/rules.server";
 
 // The installed @shopify/shopify-api's `ApiVersion` enum tops out at "2025-07"
 // (its latest npm release hasn't been bumped) — over a year stale relative to
@@ -88,6 +88,14 @@ const shopify = shopifyApp({
         if (!(await getValidation(admin))) await ensureValidationActive(admin);
       } catch (error) {
         console.error("Failed to activate checkout validation", { shop: session.shop, error });
+      }
+      // Rules outlive an uninstall (they're the shop's own metaobjects) but the
+      // subscription doesn't, so a reinstall starts on Free with every old
+      // ACTIVE rule enforced. Bring it back within the Free cap.
+      try {
+        await enforceFreePlanLimitIfUnpaid(admin, FREE_PLAN_RULE_LIMIT, Object.values(BILLING_PLANS));
+      } catch (error) {
+        console.error("Failed to enforce Free plan limit", { shop: session.shop, error });
       }
     },
   },

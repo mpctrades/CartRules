@@ -715,6 +715,25 @@ export async function readRulesCache(admin) {
  * to Free, so a downgrade can't keep unlimited rules enforced.
  * Returns the number of rules paused.
  */
+/**
+ * Applies the Free-plan cap when the shop has no active CartRules
+ * subscription. Asks Shopify directly (no `billing` helper needed), so it
+ * also works from afterAuth (reinstall: old ACTIVE rules survive uninstall)
+ * and from the app_subscriptions/update webhook (cancelled, declined or
+ * frozen outside the app). Returns the number of rules paused.
+ */
+export async function enforceFreePlanLimitIfUnpaid(admin, limit, planNames) {
+  const response = await admin.graphql(`#graphql
+    query CartRulesActiveSubscriptions {
+      currentAppInstallation { activeSubscriptions { name status } }
+    }`);
+  const json = await response.json();
+  const subscriptions = json.data?.currentAppInstallation?.activeSubscriptions;
+  if (!Array.isArray(subscriptions)) throw new Error("Could not read the app's subscriptions");
+  const paid = subscriptions.some((s) => s.status === "ACTIVE" && planNames.includes(s.name));
+  return paid ? 0 : enforceFreePlanLimit(admin, limit);
+}
+
 export async function enforceFreePlanLimit(admin, limit) {
   const active = (await listRules(admin)).filter((r) => r.status === RULE_STATUS.ACTIVE);
   const excess = active.slice(limit);
