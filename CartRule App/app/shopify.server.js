@@ -1,3 +1,4 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
 import "@shopify/shopify-app-remix/adapters/node";
 import {
   AppDistribution,
@@ -138,7 +139,53 @@ async function authenticateAdmin(request) {
   }
 }
 
-export const authenticate = { ...shopify.authenticate, admin: authenticateAdmin };
+// With expiringOfflineAccessTokens, authenticate.webhook refreshes a stored
+// offline token that has expired before handing it over. After an uninstall
+// (or a closed store) that refresh can never succeed, so the library answers
+// a valid webhook with a bare 500 and Shopify keeps retrying app/uninstalled
+// and shop/redact — App Store review uninstalls about an hour after install,
+// exactly when the token has expired. Once the HMAC checks out, drop the
+// dead offline session and authenticate again without it.
+//
+// The HMAC covers the body but not the X-Shopify-Shop-Domain header, so only
+// trust the shop when the signed body names the same one (shop_domain for the
+// compliance topics, myshopify_domain for app/uninstalled).
+async function verifiedWebhookShop(request) {
+  const hmac = request.headers.get("X-Shopify-Hmac-Sha256") ?? "";
+  const shop = request.headers.get("X-Shopify-Shop-Domain") ?? "";
+  const body = Buffer.from(await request.arrayBuffer());
+  const digest = createHmac("sha256", process.env.SHOPIFY_API_SECRET || "").update(body).digest();
+  const given = Buffer.from(hmac, "base64");
+  if (!shop || given.length !== digest.length || !timingSafeEqual(given, digest)) return null;
+
+  let payload;
+  try {
+    payload = JSON.parse(body.toString("utf8"));
+  } catch {
+    return null;
+  }
+  const signedShop = payload?.shop_domain ?? payload?.myshopify_domain;
+  return typeof signedShop === "string" && signedShop === shop ? shop : null;
+}
+
+async function authenticateWebhook(request) {
+  const retry = request.clone();
+  const recheck = request.clone();
+  try {
+    return await shopify.authenticate.webhook(request);
+  } catch (error) {
+    // 4xx Responses are the library rejecting the request itself (bad HMAC,
+    // wrong method); pass those straight through.
+    if (error instanceof Response && error.status < 500) throw error;
+    const shop = await verifiedWebhookShop(recheck);
+    if (!shop) throw error;
+    console.warn(`Offline token refresh failed for ${shop}; dropping its session`);
+    await prisma.session.deleteMany({ where: { shop, isOnline: false } });
+    return shopify.authenticate.webhook(retry);
+  }
+}
+
+export const authenticate = { ...shopify.authenticate, admin: authenticateAdmin, webhook: authenticateWebhook };
 export const unauthenticated = shopify.unauthenticated;
 export const login = shopify.login;
 export const registerWebhooks = shopify.registerWebhooks;
