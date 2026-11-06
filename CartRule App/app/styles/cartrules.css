@@ -448,3 +448,102 @@
   border-radius: 999px;
   padding: 2px 8px;
 }
+
+/* ---- Overview: status card ---------------------------------------- */
+.cr-status-card {
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+}
+.cr-status-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--cr-status-accent, var(--p-color-border));
+}
+.cr-status-card--ok { --cr-status-accent: var(--p-color-bg-fill-success); }
+.cr-status-card--warn { --cr-status-accent: var(--p-color-bg-fill-caution); }
+.cr-status-card--bad { --cr-status-accent: var(--p-color-bg-fill-critical); }
+.cr-status-card--off { --cr-status-accent: var(--cr-orange); }
+.cr-status-card__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 32px;
+  align-items: center;
+}
+.cr-status-card__hero {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+.cr-status-card__checks {
+  border-left: 1px solid var(--cr-border);
+  padding-left: 24px;
+}
+.cr-status-card__problems {
+  margin-top: 20px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--p-color-bg-surface-caution);
+}
+.cr-status-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.cr-status-icon .Polaris-Icon { width: 28px; height: 28px; }
+.cr-status-icon--ok { background: var(--p-color-bg-fill-success-secondary); color: var(--p-color-icon-success); }
+.cr-status-icon--ok svg { fill: var(--p-color-icon-success); }
+.cr-status-icon--warn { background: var(--p-color-bg-fill-caution-secondary); }
+.cr-status-icon--warn svg { fill: var(--p-color-icon-caution); }
+.cr-status-icon--bad { background: var(--p-color-bg-fill-critical-secondary); }
+.cr-status-icon--bad svg { fill: var(--p-color-icon-critical); }
+.cr-status-icon--off { background: var(--cr-orange-soft); }
+.cr-status-icon--off svg { fill: var(--cr-orange); }
+
+/* ---- Overview: your rules ------------------------------------------ */
+.cr-rule-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--cr-orange-soft);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.cr-rule-icon svg { fill: var(--cr-orange); }
+.cr-rule-row { gap: 16px; }
+.cr-rules-empty {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  padding: 8px 0;
+}
+.cr-rules-empty > :nth-child(2) { flex: 1; min-width: 220px; }
+
+/* ---- Overview: activity strip -------------------------------------- */
+.cr-activity-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  background: linear-gradient(90deg, var(--cr-orange-soft), var(--p-color-bg-surface) 60%);
+}
+
+@media (max-width: 860px) {
+  .cr-status-card__grid { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+  .cr-status-card__checks { border-left: 0; padding-left: 0; }
+}
+@media (max-width: 640px) {
+  .cr-rule-row { flex-wrap: wrap; }
+}
+.cr-activity-strip__text { flex: 1 1 360px; min-width: 0; }
