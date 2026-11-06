@@ -547,3 +547,15 @@
   .cr-rule-row { flex-wrap: wrap; }
 }
 .cr-activity-strip__text { flex: 1 1 360px; min-width: 0; }
+
+/* ---- Settings: customer messages ----------------------------------- */
+.cr-message-row { align-items: flex-start; gap: 16px; }
+.cr-message-preview {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--p-color-bg-surface-secondary);
+  border-left: 3px solid var(--cr-orange);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--p-color-text);
+}
