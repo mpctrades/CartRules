@@ -594,3 +594,23 @@
 }
 .cr-perf__row > :nth-child(5) { padding-left: 16px; }
 @media (max-width: 760px) { .cr-perf__row > :nth-child(5) { padding-left: 0; } }
+
+/* ---- Help: rule checker, review card, contact fallback -------------- */
+.cr-check-bar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.cr-finding { gap: 16px; }
+.cr-finding__icon {
+  width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.cr-finding__icon--bad { background: var(--p-color-bg-fill-critical-secondary); }
+.cr-finding__icon--warn { background: var(--p-color-bg-fill-caution-secondary); }
+.cr-finding__icon--ok { background: var(--p-color-bg-fill-success-secondary); }
+.cr-finding__icon--info { background: var(--p-color-bg-surface-secondary); }
+.cr-review-card {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  background: linear-gradient(90deg, var(--cr-orange-soft), var(--p-color-bg-surface) 60%);
+}
+.cr-contact-fallback {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  padding: 10px 14px; border-radius: 10px; border: 1px dashed var(--p-color-border);
+}

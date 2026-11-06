@@ -1,6 +1,12 @@
 import { useMemo, useState } from "react";
 import { json } from "@remix-run/node";
-import { useFetcher, useLoaderData, useNavigate, useSearchParams } from "@remix-run/react";
+import {
+  useFetcher,
+  useLoaderData,
+  useLocation,
+  useNavigate,
+  useSearchParams,
+} from "@remix-run/react";
 import {
   ActionList,
   Banner,
@@ -17,7 +23,13 @@ import {
   Text,
   TextField,
 } from "@shopify/polaris";
-import { FilterIcon, MenuHorizontalIcon, PlusIcon, SearchIcon, ShieldCheckMarkIcon } from "@shopify/polaris-icons";
+import {
+  FilterIcon,
+  MenuHorizontalIcon,
+  PlusIcon,
+  SearchIcon,
+  ShieldCheckMarkIcon,
+} from "@shopify/polaris-icons";
 import { loadAppContext } from "../models/context.server";
 import {
   deleteRule,
@@ -25,13 +37,15 @@ import {
   ensureValidationActive,
   getCheckoutEnforcement,
   getRule,
+  getSetupFlags,
   readRulesCache,
   setRuleStatus,
+  setSetupFlag,
   syncRulesCache,
   FUNCTION_METAFIELD_MAX_BYTES,
 } from "../models/rules.server";
 import { getRulesHealth } from "../models/health.server";
-import { getTriggerCountsByRule } from "../models/events.server";
+import { getTriggerCountsByRule, hasAnyEvent } from "../models/events.server";
 import { getTargetProductCounts } from "../models/targetCounts.server";
 import { activeRuleRoom, lockedFeatures } from "../models/plan.server";
 import { FREE_PLAN_RULE_LIMIT } from "../shopify.server";
@@ -45,23 +59,53 @@ import {
   DISPLAY_STATUS,
   DISPLAY_STATUS_INFO,
 } from "../models/ruleConstants";
-import { describeRule, describeTarget, getDisplayStatus } from "../models/ruleDisplay";
+import {
+  describeRule,
+  describeTarget,
+  getDisplayStatus,
+} from "../models/ruleDisplay";
 import { useActionToast } from "../utils/useActionToast";
 import { useFlashToast } from "../utils/useFlashToast";
-import { AppPage, Box, EmptyBlock, StatusBadge, formatNumber } from "../components/ui";
+import { useReviewPrompt } from "../utils/useReviewPrompt";
+import {
+  AppPage,
+  Box,
+  EmptyBlock,
+  StatusBadge,
+  formatNumber,
+} from "../components/ui";
 
 export const loader = async ({ request }) => {
   const ctx = await loadAppContext(request);
   const { admin, shop, rules, plan, settings } = ctx;
   const liveCount = rules.filter((r) => r.status === RULE_STATUS.ACTIVE).length;
-  const [healthResult, cache, triggerCounts, productCounts, checkoutEnforcing] = await Promise.all([
-    getRulesHealth(admin, shop, rules, { plan: plan.name, conflictMode: settings.conflictMode }),
+  const [
+    healthResult,
+    cache,
+    triggerCounts,
+    productCounts,
+    checkoutEnforcing,
+    hadShopperActivity,
+    setupFlags,
+  ] = await Promise.all([
+    getRulesHealth(admin, shop, rules, {
+      plan: plan.name,
+      conflictMode: settings.conflictMode,
+    }),
     readRulesCache(admin),
     getTriggerCountsByRule(shop, plan.name),
     getTargetProductCounts(admin, rules),
     getCheckoutEnforcement(admin, liveCount),
+    hasAnyEvent(shop, { includeTests: false }),
+    getSetupFlags(admin).catch(() => ({})),
   ]);
+  // Ask for a review only once rules have stopped real shoppers, and at most
+  // every 60 days (Shopify enforces its own limits on top).
+  const lastAsked = Date.parse(setupFlags.reviewPromptedAt ?? "") || 0;
+  const reviewEligible =
+    hadShopperActivity && Date.now() - lastAsked > 60 * 24 * 60 * 60 * 1000;
   return json({
+    reviewEligible,
     rules,
     health: healthResult.health,
     conflicts: healthResult.conflicts,
@@ -86,7 +130,11 @@ export const action = async (args) => {
   } catch (error) {
     if (error instanceof Response) throw error;
     console.error("Rules action failed", error);
-    return json({ ok: false, toast: "Something went wrong. Please try again.", toastError: true });
+    return json({
+      ok: false,
+      toast: "Something went wrong. Please try again.",
+      toastError: true,
+    });
   }
 };
 
@@ -97,14 +145,25 @@ async function handleAction({ request }) {
   const intent = formData.get("intent");
   const id = formData.get("id");
 
+  if (intent === "reviewPrompted") {
+    await setSetupFlag(admin, "reviewPromptedAt", new Date().toISOString());
+    return json({ ok: true });
+  }
   if (intent === "enableValidation") {
     await ensureValidationActive(admin);
     await syncRulesCache(admin, { activateValidation: false });
     return json({ ok: true, toast: "CartRules is now enforced at checkout" });
   }
 
-  const rule = id ? rules.find((r) => r.id === id) ?? (await getRule(admin, id)) : null;
-  if (!rule) return json({ ok: false, toast: "This rule no longer exists.", toastError: true });
+  const rule = id
+    ? (rules.find((r) => r.id === id) ?? (await getRule(admin, id)))
+    : null;
+  if (!rule)
+    return json({
+      ok: false,
+      toast: "This rule no longer exists.",
+      toastError: true,
+    });
   const title = rule.title || "Rule";
 
   if (intent === "activate") {
@@ -117,7 +176,9 @@ async function handleAction({ request }) {
         toastError: true,
       });
     }
-    const activeCount = rules.filter((r) => r.status === RULE_STATUS.ACTIVE).length;
+    const activeCount = rules.filter(
+      (r) => r.status === RULE_STATUS.ACTIVE,
+    ).length;
     if (activeRuleRoom(plan.name, activeCount) <= 0) {
       return json({
         ok: false,
@@ -153,7 +214,8 @@ const TABS = [
 ];
 
 // Ended (schedule over) rules aren't live, so they sit with Paused.
-const tabOf = (status) => (status === DISPLAY_STATUS.ENDED ? DISPLAY_STATUS.PAUSED : status);
+const tabOf = (status) =>
+  status === DISPLAY_STATUS.ENDED ? DISPLAY_STATUS.PAUSED : status;
 
 function RowActions({ rule, live, onDelete }) {
   const [open, setOpen] = useState(false);
@@ -186,12 +248,27 @@ function RowActions({ rule, live, onDelete }) {
         sections={[
           {
             items: [
-              { content: "Edit", onAction: () => navigate(`/app/rules/${enc}`) },
+              {
+                content: "Edit",
+                onAction: () => navigate(`/app/rules/${enc}`),
+              },
               { content: "Duplicate", onAction: () => submit("duplicate") },
-              { content: "Test rule", onAction: () => navigate(`/app/test?ruleId=${enc}`) },
-              { content: "View activity", onAction: () => navigate(`/app/activity?ruleId=${enc}`) },
+              {
+                content: "Test rule",
+                onAction: () => navigate(`/app/test?ruleId=${enc}`),
+              },
+              {
+                content: "View activity",
+                onAction: () => navigate(`/app/activity?ruleId=${enc}`),
+              },
               isActive
-                ? { content: live === DISPLAY_STATUS.SCHEDULED ? "Pause (cancel schedule)" : "Pause", onAction: () => submit("pause") }
+                ? {
+                    content:
+                      live === DISPLAY_STATUS.SCHEDULED
+                        ? "Pause (cancel schedule)"
+                        : "Pause",
+                    onAction: () => submit("pause"),
+                  }
                 : { content: "Activate", onAction: () => submit("activate") },
             ],
           },
@@ -228,14 +305,35 @@ export default function RulesPage() {
     protectionEnabled,
     conflictMode,
     cacheTooLarge,
+    reviewEligible,
   } = useLoaderData();
+  // Read before useFlashToast strips it: arriving with a success toast means
+  // a rule was just saved — a good moment to ask for a review.
+  const location = useLocation();
+  const [arrivedFromSave] = useState(() => {
+    const p = new URLSearchParams(location.search);
+    return Boolean(p.get("toast")) && !p.get("toastError");
+  });
   useFlashToast();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const fetcher = useFetcher();
   useActionToast(fetcher);
+  const reviewFetcher = useFetcher();
+  const activated =
+    fetcher.state === "idle" &&
+    fetcher.data?.ok &&
+    /activated/.test(fetcher.data?.toast ?? "");
+  useReviewPrompt({
+    eligible: reviewEligible,
+    trigger: arrivedFromSave || activated,
+    onRequested: () =>
+      reviewFetcher.submit({ intent: "reviewPrompted" }, { method: "post" }),
+  });
 
-  const tab = TABS.some((t) => t.id === searchParams.get("tab")) ? searchParams.get("tab") : "all";
+  const tab = TABS.some((t) => t.id === searchParams.get("tab"))
+    ? searchParams.get("tab")
+    : "all";
   const [query, setQuery] = useState("");
   const [type, setType] = useState("all");
   const [status, setStatus] = useState("all");
@@ -246,13 +344,19 @@ export default function RulesPage() {
   const [toDelete, setToDelete] = useState(null);
 
   const withStatus = useMemo(
-    () => rules.map((r) => ({ ...r, display: getDisplayStatus(r, health[r.id]), issues: health[r.id]?.issues ?? [] })),
+    () =>
+      rules.map((r) => ({
+        ...r,
+        display: getDisplayStatus(r, health[r.id]),
+        issues: health[r.id]?.issues ?? [],
+      })),
     [rules, health],
   );
   const counts = useMemo(() => {
     const c = Object.fromEntries(TABS.map((t) => [t.id, 0]));
     c.all = withStatus.length;
-    for (const r of withStatus) c[tabOf(r.display)] = (c[tabOf(r.display)] ?? 0) + 1;
+    for (const r of withStatus)
+      c[tabOf(r.display)] = (c[tabOf(r.display)] ?? 0) + 1;
     return c;
   }, [withStatus]);
 
@@ -260,17 +364,30 @@ export default function RulesPage() {
     if (tab !== "all" && tabOf(r.display) !== tab) return false;
     if (type !== "all" && r.ruleType !== type) return false;
     if (status !== "all" && r.display !== status) return false;
-    if (scope !== "all" && (r.target?.type ?? TARGET_TYPES.ALL) !== scope) return false;
-    if (customerOnly && (!r.customer || r.customer.type === CUSTOMER_TYPES.EVERYONE)) return false;
-    if (scheduledOnly && !(r.schedule?.startsAt || r.schedule?.endsAt)) return false;
+    if (scope !== "all" && (r.target?.type ?? TARGET_TYPES.ALL) !== scope)
+      return false;
+    if (
+      customerOnly &&
+      (!r.customer || r.customer.type === CUSTOMER_TYPES.EVERYONE)
+    )
+      return false;
+    if (scheduledOnly && !(r.schedule?.startsAt || r.schedule?.endsAt))
+      return false;
     if (query.trim()) {
       const q = query.trim().toLowerCase();
-      const hay = `${r.title} ${describeRule(r, currency)} ${describeTarget(r.target)}`.toLowerCase();
+      const hay =
+        `${r.title} ${describeRule(r, currency)} ${describeTarget(r.target)}`.toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
   });
-  const filtersActive = query || type !== "all" || status !== "all" || scope !== "all" || customerOnly || scheduledOnly;
+  const filtersActive =
+    query ||
+    type !== "all" ||
+    status !== "all" ||
+    scope !== "all" ||
+    customerOnly ||
+    scheduledOnly;
   const clearFilters = () => {
     setQuery("");
     setType("all");
@@ -281,7 +398,11 @@ export default function RulesPage() {
   };
 
   const createButton = (
-    <Button variant="primary" icon={PlusIcon} onClick={() => navigate("/app/rules/new")}>
+    <Button
+      variant="primary"
+      icon={PlusIcon}
+      onClick={() => navigate("/app/rules/new")}
+    >
       Create rule
     </Button>
   );
@@ -289,7 +410,9 @@ export default function RulesPage() {
   const scopeText = (r) => {
     const base = describeTarget(r.target);
     const n = productCounts[r.id];
-    return n == null || r.target?.type === TARGET_TYPES.PRODUCT ? base : `${base} · ${formatNumber(n)} ${n === 1 ? "product" : "products"}`;
+    return n == null || r.target?.type === TARGET_TYPES.PRODUCT
+      ? base
+      : `${base} · ${formatNumber(n)} ${n === 1 ? "product" : "products"}`;
   };
 
   const rows = filtered.map((r, index) => (
@@ -308,7 +431,12 @@ export default function RulesPage() {
                 <Text as="span" tone="caution" variant="bodySm">
                   ⚠ {r.issues.map((i) => i.message).join(" · ")}
                 </Text>
-                <Button size="slim" onClick={() => navigate(`/app/rules/${encodeURIComponent(r.id)}`)}>
+                <Button
+                  size="slim"
+                  onClick={() =>
+                    navigate(`/app/rules/${encodeURIComponent(r.id)}`)
+                  }
+                >
                   Fix rule
                 </Button>
               </InlineStack>
@@ -316,9 +444,13 @@ export default function RulesPage() {
           </BlockStack>
         </div>
       </IndexTable.Cell>
-      <IndexTable.Cell>{RULE_TYPE_INFO[r.ruleType]?.short ?? r.ruleType}</IndexTable.Cell>
       <IndexTable.Cell>
-        <div style={{ maxWidth: 240, whiteSpace: "normal" }}>{scopeText(r)}</div>
+        {RULE_TYPE_INFO[r.ruleType]?.short ?? r.ruleType}
+      </IndexTable.Cell>
+      <IndexTable.Cell>
+        <div style={{ maxWidth: 240, whiteSpace: "normal" }}>
+          {scopeText(r)}
+        </div>
       </IndexTable.Cell>
       <IndexTable.Cell>
         <Text as="span" numeric>
@@ -344,7 +476,8 @@ export default function RulesPage() {
           Create and manage the rules protecting your store.
           <br />
           <Text as="span" tone="subdued">
-            {rules.length} total {rules.length === 1 ? "rule" : "rules"} · {activeCount} active
+            {rules.length} total {rules.length === 1 ? "rule" : "rules"} ·{" "}
+            {activeCount} active
             {plan === "Free" ? ` (Free plan: up to ${freeLimit})` : ""}
           </Text>
         </>
@@ -358,28 +491,42 @@ export default function RulesPage() {
           action={{
             content: "Turn on at checkout",
             loading: fetcher.state !== "idle",
-            onAction: () => fetcher.submit({ intent: "enableValidation" }, { method: "post" }),
+            onAction: () =>
+              fetcher.submit(
+                { intent: "enableValidation" },
+                { method: "post" },
+              ),
           }}
         >
-          Shopify isn&apos;t running CartRules&apos; checkout rule (Settings → Checkout → Checkout rules), so no rule
-          is enforced at checkout right now.
+          Shopify isn&apos;t running CartRules&apos; checkout rule (Settings →
+          Checkout → Checkout rules), so no rule is enforced at checkout right
+          now.
         </Banner>
       ) : null}
       {!protectionEnabled ? (
-        <Banner tone="warning" title="CartRules protection is off" action={{ content: "Open Settings", url: "/app/settings" }}>
+        <Banner
+          tone="warning"
+          title="CartRules protection is off"
+          action={{ content: "Open Settings", url: "/app/settings" }}
+        >
           All rules are paused store-wide until you turn protection back on.
         </Banner>
       ) : null}
       {cacheTooLarge ? (
         <Banner tone="critical" title="Your rules are too large for checkout">
-          Shopify only lets checkout read 10 KB of rule data, so checkout enforces none of your rules right now. Target
-          tags or collections instead of long product lists, or remove rules you no longer need.
+          Shopify only lets checkout read 10 KB of rule data, so checkout
+          enforces none of your rules right now. Target tags or collections
+          instead of long product lists, or remove rules you no longer need.
         </Banner>
       ) : null}
       {conflicts.length ? (
         <Banner
           tone="warning"
-          title={conflicts.length === 1 ? "Two rules overlap" : `${conflicts.length} rule overlaps`}
+          title={
+            conflicts.length === 1
+              ? "Two rules overlap"
+              : `${conflicts.length} rule overlaps`
+          }
           action={{ content: "Change rule behavior", url: "/app/settings" }}
         >
           <BlockStack gap="100">
@@ -389,8 +536,10 @@ export default function RulesPage() {
               </Text>
             ))}
             <Text as="p" tone="subdued">
-              {conflictMode === "priority" ? "Highest priority wins" : "Most restrictive wins"} — change this in
-              Settings → Rule behavior.
+              {conflictMode === "priority"
+                ? "Highest priority wins"
+                : "Most restrictive wins"}{" "}
+              — change this in Settings → Rule behavior.
             </Text>
           </BlockStack>
         </Banner>
@@ -425,11 +574,26 @@ export default function RulesPage() {
               const next = new URLSearchParams(searchParams);
               if (TABS[i].id === "all") next.delete("tab");
               else next.set("tab", TABS[i].id);
-              setSearchParams(next, { replace: true, preventScrollReset: true });
+              setSearchParams(next, {
+                replace: true,
+                preventScrollReset: true,
+              });
             }}
           />
-          <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--p-color-border-secondary)" }}>
-            <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", alignItems: "center" }}>
+          <div
+            style={{
+              padding: "12px 16px",
+              borderBottom: "1px solid var(--p-color-border-secondary)",
+            }}
+          >
+            <div
+              style={{
+                display: "grid",
+                gap: 8,
+                gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+                alignItems: "center",
+              }}
+            >
               <TextField
                 label="Search rules"
                 labelHidden
@@ -446,7 +610,13 @@ export default function RulesPage() {
                 labelHidden
                 value={type}
                 onChange={setType}
-                options={[{ label: "Rule type: All", value: "all" }, ...RULE_TYPE_ORDER.map((t) => ({ label: RULE_TYPE_INFO[t].title, value: t }))]}
+                options={[
+                  { label: "Rule type: All", value: "all" },
+                  ...RULE_TYPE_ORDER.map((t) => ({
+                    label: RULE_TYPE_INFO[t].title,
+                    value: t,
+                  })),
+                ]}
               />
               <Select
                 label="Status"
@@ -455,7 +625,9 @@ export default function RulesPage() {
                 onChange={setStatus}
                 options={[
                   { label: "Status: All", value: "all" },
-                  ...Object.entries(DISPLAY_STATUS_INFO).map(([value, info]) => ({ label: info.label, value })),
+                  ...Object.entries(DISPLAY_STATUS_INFO).map(
+                    ([value, info]) => ({ label: info.label, value }),
+                  ),
                 ]}
               />
               <Select
@@ -463,22 +635,39 @@ export default function RulesPage() {
                 labelHidden
                 value={scope}
                 onChange={setScope}
-                options={[{ label: "Scope: All", value: "all" }, ...Object.entries(TARGET_INFO).filter(([value]) => value !== "all").map(([value, info]) => ({ label: info.label, value }))]}
+                options={[
+                  { label: "Scope: All", value: "all" },
+                  ...Object.entries(TARGET_INFO)
+                    .filter(([value]) => value !== "all")
+                    .map(([value, info]) => ({ label: info.label, value })),
+                ]}
               />
               <Popover
                 active={moreOpen}
                 onClose={() => setMoreOpen(false)}
                 preferredAlignment="right"
                 activator={
-                  <Button icon={FilterIcon} disclosure onClick={() => setMoreOpen((o) => !o)}>
+                  <Button
+                    icon={FilterIcon}
+                    disclosure
+                    onClick={() => setMoreOpen((o) => !o)}
+                  >
                     More filters
                   </Button>
                 }
               >
                 <div style={{ padding: 16, minWidth: 240 }}>
                   <BlockStack gap="200">
-                    <Checkbox label="Has customer conditions" checked={customerOnly} onChange={setCustomerOnly} />
-                    <Checkbox label="Scheduled rules only" checked={scheduledOnly} onChange={setScheduledOnly} />
+                    <Checkbox
+                      label="Has customer conditions"
+                      checked={customerOnly}
+                      onChange={setCustomerOnly}
+                    />
+                    <Checkbox
+                      label="Scheduled rules only"
+                      checked={scheduledOnly}
+                      onChange={setScheduledOnly}
+                    />
                     {filtersActive ? (
                       <Button variant="plain" onClick={clearFilters}>
                         Clear all filters
@@ -492,9 +681,15 @@ export default function RulesPage() {
           {filtered.length === 0 ? (
             <EmptyBlock
               title="No rules match"
-              action={filtersActive ? <Button onClick={clearFilters}>Clear filters</Button> : null}
+              action={
+                filtersActive ? (
+                  <Button onClick={clearFilters}>Clear filters</Button>
+                ) : null
+              }
             >
-              {filtersActive ? "Try a different search or filter." : "There are no rules in this tab."}
+              {filtersActive
+                ? "Try a different search or filter."
+                : "There are no rules in this tab."}
             </EmptyBlock>
           ) : (
             <IndexTable
@@ -505,7 +700,12 @@ export default function RulesPage() {
                 { title: "Rule" },
                 { title: "Type" },
                 { title: "Scope" },
-                { title: "Activity", alignment: "end", tooltipContent: "Shopper rule triggers in your plan's history window" },
+                {
+                  title: "Activity",
+                  alignment: "end",
+                  tooltipContent:
+                    "Shopper rule triggers in your plan's history window",
+                },
                 { title: "Status" },
                 { title: "Actions", alignment: "end", hidden: false },
               ]}
@@ -525,20 +725,24 @@ export default function RulesPage() {
           destructive: true,
           loading: fetcher.state !== "idle",
           onAction: () => {
-            fetcher.submit({ intent: "delete", id: toDelete.id }, { method: "post" });
+            fetcher.submit(
+              { intent: "delete", id: toDelete.id },
+              { method: "post" },
+            );
             setToDelete(null);
           },
         }}
-        secondaryActions={[{ content: "Cancel", onAction: () => setToDelete(null) }]}
+        secondaryActions={[
+          { content: "Cancel", onAction: () => setToDelete(null) },
+        ]}
       >
         <Modal.Section>
           <Text as="p">
-            Checkout stops enforcing this rule immediately. Its activity history stays in Activity. This can&apos;t be
-            undone.
+            Checkout stops enforcing this rule immediately. Its activity history
+            stays in Activity. This can&apos;t be undone.
           </Text>
         </Modal.Section>
       </Modal>
     </AppPage>
   );
 }
-

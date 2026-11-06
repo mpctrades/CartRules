@@ -1,17 +1,53 @@
 import { useMemo, useState } from "react";
 import { json } from "@remix-run/node";
-import { useLoaderData, useNavigate, useSearchParams } from "@remix-run/react";
-import { BlockStack, InlineStack, Text, Button, TextField, Select, Icon } from "@shopify/polaris";
-import { ChevronDownIcon, ChevronUpIcon, SearchIcon } from "@shopify/polaris-icons";
+import {
+  useFetcher,
+  useLoaderData,
+  useNavigate,
+  useNavigation,
+  useSearchParams,
+} from "@remix-run/react";
+import {
+  Badge,
+  BlockStack,
+  InlineStack,
+  Text,
+  Button,
+  TextField,
+  Select,
+  Icon,
+} from "@shopify/polaris";
+import {
+  AlertCircleIcon,
+  AlertTriangleIcon,
+  CheckCircleIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+  InfoIcon,
+  SearchIcon,
+  StarIcon,
+} from "@shopify/polaris-icons";
 import pkg from "../../package.json";
+import { authenticate } from "../shopify.server";
 import { loadAppContext } from "../models/context.server";
-import { getCartThemeEditorDeepLink, getThemeEditorDeepLink } from "../utils/themeEditor";
+import { diagnoseRule } from "../models/diagnose.server";
+import { ensureValidationActive } from "../models/rules.server";
+import { useActionToast } from "../utils/useActionToast";
+import {
+  getCartThemeEditorDeepLink,
+  getThemeEditorDeepLink,
+} from "../utils/themeEditor";
 import { AppPage, Box, Segmented } from "../components/ui";
 
 const SUPPORT_EMAIL = "team@mpctrades.com";
+const APP_STORE_REVIEWS_URL = "https://apps.shopify.com/cartrules/reviews";
 
 function appVersion() {
-  const commit = (process.env.GIT_COMMIT || process.env.SOURCE_VERSION || "").slice(0, 7);
+  const commit = (
+    process.env.GIT_COMMIT ||
+    process.env.SOURCE_VERSION ||
+    ""
+  ).slice(0, 7);
   const base = pkg.version ? `v${pkg.version}` : "";
   return [base, commit].filter(Boolean).join(" · ") || "development build";
 }
@@ -19,7 +55,18 @@ function appVersion() {
 // No email-sending backend for support — submissions open a prefilled
 // mailto: draft instead of a fake "ticket submitted" confirmation.
 export const loader = async ({ request }) => {
-  const { admin, shop, plan, rules } = await loadAppContext(request, { settings: false });
+  const ctx = await loadAppContext(request);
+  const { admin, shop, plan, rules } = ctx;
+  const checkId = new URL(request.url).searchParams.get("check");
+  let diagnosis = null;
+  if (checkId) {
+    try {
+      diagnosis = await diagnoseRule(ctx, checkId);
+    } catch (error) {
+      console.error("Rule check failed", { shop, error });
+      diagnosis = { error: true };
+    }
+  }
   let shopifyPlan = null;
   try {
     const response = await admin.graphql(`#graphql
@@ -35,7 +82,28 @@ export const loader = async ({ request }) => {
     shopifyPlan,
     version: appVersion(),
     rules: rules.map((r) => ({ id: r.id, title: r.title || "Untitled rule" })),
+    diagnosis,
   });
+};
+
+export const action = async ({ request }) => {
+  const { admin } = await authenticate.admin(request);
+  const intent = (await request.formData()).get("intent");
+  if (intent === "enableValidation") {
+    try {
+      await ensureValidationActive(admin);
+      return json({ ok: true, toast: "CartRules is now enforced at checkout" });
+    } catch (error) {
+      if (error instanceof Response) throw error;
+      console.error("Could not enable validation from Help", error);
+      return json({
+        ok: false,
+        toast: "Something went wrong. Please try again.",
+        toastError: true,
+      });
+    }
+  }
+  return json({ ok: false }, { status: 400 });
 };
 
 const SECTIONS = [
@@ -152,7 +220,14 @@ const TROUBLESHOOTING = [
   },
 ];
 
-const TOPICS = ["Setup help", "Rule not working", "Billing", "Feature request", "Bug report", "Other"].map((t) => ({
+const TOPICS = [
+  "Setup help",
+  "Rule not working",
+  "Billing",
+  "Feature request",
+  "Bug report",
+  "Other",
+].map((t) => ({
   label: t,
   value: t,
 }));
@@ -160,6 +235,190 @@ const TOPICS = ["Setup help", "Rule not working", "Billing", "Feature request", 
 function buildMailto({ subject, body }) {
   const params = new URLSearchParams({ subject, body });
   return `mailto:${SUPPORT_EMAIL}?${params.toString().replace(/\+/g, "%20")}`;
+}
+
+function gmailComposeUrl({ subject, body }) {
+  const params = new URLSearchParams({
+    view: "cm",
+    fs: "1",
+    to: SUPPORT_EMAIL,
+    su: subject,
+    body,
+  });
+  return `https://mail.google.com/mail/?${params.toString()}`;
+}
+
+// Clipboard inside the admin iframe can be blocked; fall back to a hidden
+// textarea + execCommand, which works in embedded apps.
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (_e) {
+    try {
+      const el = document.createElement("textarea");
+      el.value = text;
+      el.setAttribute("readonly", "");
+      el.style.position = "fixed";
+      el.style.opacity = "0";
+      document.body.appendChild(el);
+      el.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(el);
+      return ok;
+    } catch (_e2) {
+      return false;
+    }
+  }
+}
+
+const FINDING_STYLE = {
+  bad: { icon: AlertCircleIcon, tone: "critical" },
+  warn: { icon: AlertTriangleIcon, tone: "caution" },
+  ok: { icon: CheckCircleIcon, tone: "success" },
+  info: { icon: InfoIcon, tone: "subdued" },
+};
+
+function RuleChecker({ rules, diagnosis }) {
+  const navigate = useNavigate();
+  const navigation = useNavigation();
+  const fetcher = useFetcher();
+  useActionToast(fetcher);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [ruleId, setRuleId] = useState(
+    searchParams.get("check") ?? rules[0]?.id ?? "",
+  );
+  const checking =
+    navigation.state === "loading" &&
+    navigation.location?.search?.includes("check=");
+
+  const run = () => {
+    const next = new URLSearchParams(searchParams);
+    next.set("check", ruleId);
+    setSearchParams(next, { preventScrollReset: true });
+  };
+
+  return (
+    <Box
+      title="Why isn't my rule working?"
+      subtitle="Pick a rule and we'll check everything that can stop it — and tell you how to fix it."
+    >
+      {rules.length === 0 ? (
+        <Text as="p" tone="subdued">
+          You don&apos;t have any rules yet.{" "}
+          <Button variant="plain" onClick={() => navigate("/app/rules/new")}>
+            Create your first rule
+          </Button>
+        </Text>
+      ) : (
+        <BlockStack gap="400">
+          <div className="cr-check-bar">
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <Select
+                label="Rule"
+                labelHidden
+                options={rules.map((r) => ({ label: r.title, value: r.id }))}
+                value={ruleId}
+                onChange={setRuleId}
+              />
+            </div>
+            <Button variant="primary" onClick={run} loading={checking}>
+              Check rule
+            </Button>
+          </div>
+          {diagnosis?.error ? (
+            <Text as="p" tone="critical">
+              We couldn&apos;t check this rule right now. Please try again in a
+              moment.
+            </Text>
+          ) : diagnosis?.rule ? (
+            <div className="cr-list" style={{ opacity: checking ? 0.5 : 1 }}>
+              <div className="cr-list-row">
+                <Text as="p" tone="subdued" variant="bodySm">
+                  Results for <strong>{diagnosis.rule.title}</strong> ·{" "}
+                  {diagnosis.rule.summary}
+                </Text>
+              </div>
+              {diagnosis.findings.map((f) => {
+                const style = FINDING_STYLE[f.severity];
+                return (
+                  <div
+                    key={f.title}
+                    className="cr-list-row cr-finding"
+                    style={{ alignItems: "flex-start" }}
+                  >
+                    <InlineStack gap="300" blockAlign="start" wrap={false}>
+                      <span
+                        className={`cr-finding__icon cr-finding__icon--${f.severity}`}
+                      >
+                        <Icon source={style.icon} tone={style.tone} />
+                      </span>
+                      <div style={{ minWidth: 0 }}>
+                        <Text as="p" fontWeight="semibold">
+                          {f.title}
+                        </Text>
+                        <Text as="p" tone="subdued" variant="bodySm">
+                          {f.detail}
+                        </Text>
+                      </div>
+                    </InlineStack>
+                    {f.fix ? (
+                      <Button
+                        size="slim"
+                        variant={f.severity === "bad" ? "primary" : "secondary"}
+                        loading={
+                          f.fix.intent ? fetcher.state !== "idle" : false
+                        }
+                        onClick={() => {
+                          if (f.fix.intent)
+                            fetcher.submit(
+                              { intent: f.fix.intent },
+                              { method: "post" },
+                            );
+                          else if (f.fix.href)
+                            window.open(f.fix.href, "_blank");
+                          else navigate(f.fix.to);
+                        }}
+                      >
+                        {f.fix.label}
+                      </Button>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
+        </BlockStack>
+      )}
+    </Box>
+  );
+}
+
+// Asking for a review is a plain link — never tied to features or rewards
+// (App Store requirement 1.3). The in-app review prompt is requested
+// separately, after a rule has been saved and has stopped real shoppers.
+function ReviewCard() {
+  return (
+    <section className="cr-card cr-review-card">
+      <InlineStack gap="300" blockAlign="center" wrap={false}>
+        <span className="cr-rule-icon">
+          <Icon source={StarIcon} />
+        </span>
+        <div style={{ minWidth: 0 }}>
+          <Text as="p" fontWeight="semibold">
+            Is CartRules helping your store?
+          </Text>
+          <Text as="p" tone="subdued" variant="bodySm">
+            A short review on the Shopify App Store helps other merchants decide
+            — and tells us what to improve.
+          </Text>
+        </div>
+      </InlineStack>
+      <Button onClick={() => window.open(APP_STORE_REVIEWS_URL, "_blank")}>
+        Leave a review
+      </Button>
+    </section>
+  );
 }
 
 function AccordionItem({ question, children, defaultOpen = false }) {
@@ -188,7 +447,10 @@ function AccordionItem({ question, children, defaultOpen = false }) {
           {question}
         </Text>
         <span style={{ flexShrink: 0 }}>
-          <Icon source={open ? ChevronUpIcon : ChevronDownIcon} tone="subdued" />
+          <Icon
+            source={open ? ChevronUpIcon : ChevronDownIcon}
+            tone="subdued"
+          />
         </span>
       </button>
       {open ? (
@@ -202,27 +464,44 @@ function AccordionItem({ question, children, defaultOpen = false }) {
   );
 }
 
-const matches = (query, ...texts) => !query || texts.join(" ").toLowerCase().includes(query.toLowerCase());
+const matches = (query, ...texts) =>
+  !query || texts.join(" ").toLowerCase().includes(query.toLowerCase());
 
 export default function Help() {
-  const { shop, currentPlan, shopifyPlan, version, rules } = useLoaderData();
+  const { shop, currentPlan, shopifyPlan, version, rules, diagnosis } =
+    useLoaderData();
+  const [copied, setCopied] = useState("");
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [query, setQuery] = useState("");
   const [section, setSection] = useState("all");
 
-  const initialTopic = TOPICS.some((t) => t.value === searchParams.get("topic")) ? searchParams.get("topic") : "Setup help";
-  const initialRule = rules.some((r) => r.id === searchParams.get("ruleId")) ? searchParams.get("ruleId") : "";
+  const initialTopic = TOPICS.some((t) => t.value === searchParams.get("topic"))
+    ? searchParams.get("topic")
+    : "Setup help";
+  const initialRule = rules.some((r) => r.id === searchParams.get("ruleId"))
+    ? searchParams.get("ruleId")
+    : "";
   const [topic, setTopic] = useState(initialTopic);
   const [ruleId, setRuleId] = useState(initialRule);
   const [message, setMessage] = useState("");
 
-  const articles = ARTICLES.filter((a) => (section === "all" || a.section === section) && matches(query, a.title, a.body));
+  const articles = ARTICLES.filter(
+    (a) =>
+      (section === "all" || a.section === section) &&
+      matches(query, a.title, a.body),
+  );
   const faq = FAQ.filter((f) => matches(query, f.q, f.a));
   const trouble = TROUBLESHOOTING.filter((t) => matches(query, t.q, t.a));
-  const showFaq = section === "all" || section === "getting-started" || section === "creating-rules";
+  const showFaq =
+    section === "all" ||
+    section === "getting-started" ||
+    section === "creating-rules";
   const showTrouble = section === "all" || section === "troubleshooting";
-  const nothing = articles.length === 0 && (!showFaq || faq.length === 0) && (!showTrouble || trouble.length === 0);
+  const nothing =
+    articles.length === 0 &&
+    (!showFaq || faq.length === 0) &&
+    (!showTrouble || trouble.length === 0);
 
   const rule = rules.find((r) => r.id === ruleId);
   const supportInfo = useMemo(
@@ -237,9 +516,13 @@ export default function Help() {
     [shop, version, currentPlan, shopifyPlan, rule],
   );
 
-  const send = () => {
-    const body = `${message}\n\n---\nTopic: ${topic}\n${supportInfo.join("\n")}`;
-    window.open(buildMailto({ subject: `CartRules — ${topic}`, body }), "_blank");
+  const subject = `CartRules — ${topic}`;
+  const body = `${message}\n\n---\nTopic: ${topic}\n${supportInfo.join("\n")}`;
+  const send = () => window.open(buildMailto({ subject, body }), "_blank");
+  const copy = async (what, text) => {
+    const ok = await copyText(text);
+    setCopied(ok ? what : "failed");
+    setTimeout(() => setCopied(""), 2500);
   };
 
   const contactRef = (el) => {
@@ -254,13 +537,17 @@ export default function Help() {
         <Button
           onClick={() => {
             setTopic("Feature request");
-            document.getElementById("cr-contact")?.scrollIntoView({ behavior: "smooth" });
+            document
+              .getElementById("cr-contact")
+              ?.scrollIntoView({ behavior: "smooth" });
           }}
         >
           Request a feature
         </Button>
       }
     >
+      <RuleChecker rules={rules} diagnosis={diagnosis} />
+
       <Box>
         <BlockStack gap="300">
           <TextField
@@ -275,7 +562,12 @@ export default function Help() {
             autoComplete="off"
           />
           <div style={{ overflowX: "auto" }}>
-            <Segmented label="Help sections" options={SECTIONS.map((s) => ({ label: s.label, value: s.id }))} value={section} onChange={setSection} />
+            <Segmented
+              label="Help sections"
+              options={SECTIONS.map((s) => ({ label: s.label, value: s.id }))}
+              value={section}
+              onChange={setSection}
+            />
           </div>
         </BlockStack>
       </Box>
@@ -283,7 +575,8 @@ export default function Help() {
       {nothing ? (
         <Box>
           <Text as="p" tone="subdued">
-            Nothing matches “{query}”. Try another word, or contact support below.
+            Nothing matches “{query}”. Try another word, or contact support
+            below.
           </Text>
         </Box>
       ) : null}
@@ -291,17 +584,33 @@ export default function Help() {
       {articles.length ? (
         <div className="cr-grid cr-grid--2">
           {articles.map((a) => (
-            <Box key={a.title} title={a.title} subtitle={SECTIONS.find((s) => s.id === a.section)?.label}>
+            <Box
+              key={a.title}
+              title={a.title}
+              subtitle={SECTIONS.find((s) => s.id === a.section)?.label}
+            >
               <BlockStack gap="300">
                 <Text as="p">{a.body}</Text>
                 {a.action === "product" ? (
                   <InlineStack>
-                    <Button onClick={() => window.open(getThemeEditorDeepLink(shop), "_blank")}>Add to product page</Button>
+                    <Button
+                      onClick={() =>
+                        window.open(getThemeEditorDeepLink(shop), "_blank")
+                      }
+                    >
+                      Add to product page
+                    </Button>
                   </InlineStack>
                 ) : null}
                 {a.action === "cart" ? (
                   <InlineStack>
-                    <Button onClick={() => window.open(getCartThemeEditorDeepLink(shop), "_blank")}>Add to cart</Button>
+                    <Button
+                      onClick={() =>
+                        window.open(getCartThemeEditorDeepLink(shop), "_blank")
+                      }
+                    >
+                      Add to cart
+                    </Button>
                   </InlineStack>
                 ) : null}
               </BlockStack>
@@ -314,7 +623,11 @@ export default function Help() {
         <Box title="Frequently asked questions">
           <div className="cr-list">
             {faq.map((f) => (
-              <AccordionItem key={f.q} question={f.q} defaultOpen={Boolean(query)}>
+              <AccordionItem
+                key={f.q}
+                question={f.q}
+                defaultOpen={Boolean(query)}
+              >
                 {f.a}
               </AccordionItem>
             ))}
@@ -333,7 +646,11 @@ export default function Help() {
         >
           <div className="cr-list">
             {trouble.map((t) => (
-              <AccordionItem key={t.q} question={t.q} defaultOpen={Boolean(query)}>
+              <AccordionItem
+                key={t.q}
+                question={t.q}
+                defaultOpen={Boolean(query)}
+              >
                 {t.a}
               </AccordionItem>
             ))}
@@ -341,26 +658,49 @@ export default function Help() {
         </Box>
       ) : null}
 
+      <ReviewCard />
+
       <div id="cr-contact" ref={contactRef}>
-        <Box title="Still need help?" subtitle={`Contact support — we reply by email from ${SUPPORT_EMAIL}.`}>
+        <Box
+          title="Still need help?"
+          subtitle={`Write to us and we'll reply by email from ${SUPPORT_EMAIL}. Nothing is sent until you send it from your mail.`}
+        >
           <BlockStack gap="300">
             <div className="cr-grid cr-grid--2">
-              <Select label="Topic" options={TOPICS} value={topic} onChange={setTopic} />
+              <Select
+                label="Topic"
+                options={TOPICS}
+                value={topic}
+                onChange={setTopic}
+              />
               <Select
                 label="Related rule (optional)"
-                options={[{ label: "None", value: "" }, ...rules.map((r) => ({ label: r.title, value: r.id }))]}
+                options={[
+                  { label: "None", value: "" },
+                  ...rules.map((r) => ({ label: r.title, value: r.id })),
+                ]}
                 value={ruleId}
                 onChange={setRuleId}
               />
             </div>
             <TextField
-              label={topic === "Feature request" ? "What would you like CartRules to do?" : "How can we help?"}
+              label={
+                topic === "Feature request"
+                  ? "What would you like CartRules to do?"
+                  : "How can we help?"
+              }
               value={message}
               onChange={setMessage}
               multiline={5}
               autoComplete="off"
             />
-            <div style={{ background: "var(--p-color-bg-surface-secondary)", borderRadius: 10, padding: "12px 14px" }}>
+            <div
+              style={{
+                background: "var(--p-color-bg-surface-secondary)",
+                borderRadius: 10,
+                padding: "12px 14px",
+              }}
+            >
               <Text as="p" variant="bodySm" tone="subdued">
                 Attached automatically to help us help you faster:
               </Text>
@@ -370,14 +710,57 @@ export default function Help() {
                 ))}
               </ul>
             </div>
-            <InlineStack align="end">
-              <Button variant="primary" disabled={!message.trim()} onClick={send}>
-                Contact support
+            <InlineStack align="end" gap="200">
+              <Button
+                disabled={!message.trim()}
+                onClick={() =>
+                  window.open(gmailComposeUrl({ subject, body }), "_blank")
+                }
+              >
+                Open in Gmail
+              </Button>
+              <Button
+                variant="primary"
+                disabled={!message.trim()}
+                onClick={send}
+              >
+                Open email app
               </Button>
             </InlineStack>
-            <Text as="p" variant="bodySm" tone="subdued">
-              This opens an email draft in your mail app — nothing is sent until you press send there.
-            </Text>
+            <div className="cr-contact-fallback">
+              <Text as="p" variant="bodySm" tone="subdued">
+                Neither works? Copy your message and email it to{" "}
+                <strong>{SUPPORT_EMAIL}</strong> from any mail service.
+              </Text>
+              <InlineStack gap="200">
+                <Button
+                  size="slim"
+                  disabled={!message.trim()}
+                  onClick={() =>
+                    copy(
+                      "message",
+                      `To: ${SUPPORT_EMAIL}\nSubject: ${subject}\n\n${body}`,
+                    )
+                  }
+                >
+                  {copied === "message" ? "Message copied ✓" : "Copy message"}
+                </Button>
+                <Button
+                  size="slim"
+                  onClick={() => copy("email", SUPPORT_EMAIL)}
+                >
+                  {copied === "email"
+                    ? "Address copied ✓"
+                    : "Copy email address"}
+                </Button>
+              </InlineStack>
+              {copied === "failed" ? (
+                <Text as="p" variant="bodySm" tone="critical">
+                  Your browser blocked copying — please select the text and copy
+                  it yourself.
+                </Text>
+              ) : null}
+            </div>
           </BlockStack>
         </Box>
       </div>
