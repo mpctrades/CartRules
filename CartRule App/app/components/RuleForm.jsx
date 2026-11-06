@@ -332,7 +332,10 @@ export default function RuleForm({ initial, mode, plan, timezone, currency, opti
   const set = useCallback((patch) => setForm((f) => ({ ...f, ...patch })), []);
 
   const info = RULE_TYPE_INFO[form.ruleType];
-  const rulePreview = useMemo(() => formToRule(form, timezone), [form, timezone]);
+  const rulePreview = useMemo(
+    () => ({ ...formToRule(form, timezone), legacy: Boolean(initial?.legacy) }),
+    [form, timezone, initial?.legacy],
+  );
   const locks = lockedFeaturesClient(rulePreview, plan);
   const title = titleTouched ? form.title : suggestTitle(form);
 

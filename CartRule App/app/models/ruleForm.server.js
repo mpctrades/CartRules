@@ -70,6 +70,8 @@ export async function saveRuleFromForm({ admin, billing, shop, formData, existin
 
   try {
     const [plan, rules] = await Promise.all([getPlan(admin, billing, shop), listRules(admin)]);
+    // Grandfathering comes from the stored rule only (see rule.legacy).
+    rule.legacy = Boolean(existing?.legacy);
     const locked = checkPlanForSave(rule, plan.name, existing);
     if (locked.length) {
       const needs = locked.some((f) => f.plan === "Pro") ? "Pro" : "Growth";

@@ -311,6 +311,11 @@ function ruleFromMetaobject(node) {
     schedule: config.schedule ?? { startsAt: null, endsAt: null },
     priority: Number.isFinite(Number(config.priority)) ? Number(config.priority) : 0,
     templateId: config.templateId ?? null,
+    // Saved before rules v2 (v1 never wrote `config`), or a re-save of such a
+    // rule. Keeps the features v1's Free plan included — see
+    // LEGACY_FREE_FEATURES in planFeatures.js. Only ever derived from what is
+    // stored, never from form input.
+    legacy: !f.config || config.legacy === true,
   };
 }
 
@@ -439,7 +444,7 @@ export function normalizeRuleInput(input) {
   };
 }
 
-function ruleToFields(rule) {
+function ruleToFields(rule, { legacy = false } = {}) {
   const firstValue = rule.target.values[0] ?? "";
   return [
     { key: "title", value: rule.title },
@@ -463,6 +468,7 @@ function ruleToFields(rule) {
         schedule: rule.schedule,
         priority: rule.priority,
         templateId: rule.templateId,
+        ...(legacy ? { legacy: true } : {}),
       }),
     },
   ];
@@ -526,6 +532,9 @@ export async function createRule(admin, input) {
 export async function updateRule(admin, id, input) {
   await ensureMetaobjectDefinition(admin);
   const rule = normalizeRuleInput(input);
+  // Carry the grandfathered flag from the stored rule, not from the input.
+  const stored = await getRule(admin, id);
+  const legacy = Boolean(stored?.legacy);
   if (rule.market.type === MARKET_TYPES.MARKETS) rule.market.countries = await resolveMarketCountries(admin, rule.market.marketIds);
   const data = await gql(
     admin,
@@ -536,7 +545,7 @@ export async function updateRule(admin, id, input) {
         userErrors { field message }
       }
     }`,
-    { id, metaobject: { fields: ruleToFields(rule) } },
+    { id, metaobject: { fields: ruleToFields(rule, { legacy }) } },
   );
   const errors = data?.metaobjectUpdate?.userErrors;
   if (errors?.length) throw new Error(`Could not update rule: ${JSON.stringify(errors)}`);

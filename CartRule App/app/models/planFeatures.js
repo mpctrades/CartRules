@@ -11,9 +11,15 @@ export const FEATURE_PLANS = {
   priority: "Pro",
 };
 
+// What v1's Free plan included that v2 moved to Growth. Rules merchants
+// saved before v2 (rule.legacy) keep these on Free — existing stores must
+// not lose rules they set up for free.
+export const LEGACY_FREE_FEATURES = new Set(["target:collection", "target:tag", "message"]);
+
 export function lockedFeaturesClient(rule, plan) {
   const locked = [];
   const need = (key, label, required) => {
+    if (rule.legacy && LEGACY_FREE_FEATURES.has(key)) return;
     if (!planAllows(plan, required) && !locked.some((f) => f.key === key)) locked.push({ key, label, plan: required });
   };
   const typeInfo = RULE_TYPE_INFO[rule.ruleType];
