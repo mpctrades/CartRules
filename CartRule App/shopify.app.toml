@@ -74,7 +74,9 @@ api_version = "2026-07"
 # installed in the live theme (no "mark as done" guesswork).
 # read_markets: rules can target Shopify Markets (resolved to countries).
 # read_locales: default customer messages follow the store's language.
-scopes = "read_products,read_metaobjects,write_metaobjects,read_metaobject_definitions,write_metaobject_definitions,read_validations,write_validations,read_themes,read_markets,read_locales"
+# write_app_proxy: required by Shopify for any app with an [app_proxy]
+# (the storefront activity endpoint below).
+scopes = "read_products,read_metaobjects,write_metaobjects,read_metaobject_definitions,write_metaobject_definitions,read_validations,write_validations,read_themes,read_markets,read_locales,write_app_proxy"
 optional_scopes = [ ]
 use_legacy_install_flow = false
 
