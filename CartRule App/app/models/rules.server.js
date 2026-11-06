@@ -27,7 +27,7 @@ import {
 } from "./ruleConstants";
 import { isLive } from "./ruleDisplay";
 import { getSettings, getDefaultMessages } from "./settings.server";
-import { collectInputVariables } from "../../extensions/cartrules-validation/src/engine.js";
+import { collectInputVariables } from "./ruleEngine.generated.js";
 
 export const METAOBJECT_TYPE = "cartrules_rule";
 export const CACHE_NAMESPACE = "cartrules";
@@ -110,8 +110,13 @@ export async function ensureMetaobjectDefinition(admin, shopKey = "default") {
         }`,
         { id: def.id, definition: { fieldDefinitions: missing.map((f) => ({ create: f })) } },
       );
-      const errors = data?.metaobjectDefinitionUpdate?.userErrors;
-      if (errors?.length) throw new Error(`Could not update cartrules_rule definition: ${JSON.stringify(errors)}`);
+      // OBJECT_FIELD_TAKEN: a concurrent request (afterAuth and the first
+      // page loader both run this on a shop's first v2 load) added the field
+      // first — it exists either way.
+      const errors = (data?.metaobjectDefinitionUpdate?.userErrors ?? []).filter(
+        (e) => e.code !== "OBJECT_FIELD_TAKEN",
+      );
+      if (errors.length) throw new Error(`Could not update cartrules_rule definition: ${JSON.stringify(errors)}`);
     }
     definitionReady.add(shopKey);
     return;
@@ -123,13 +128,16 @@ export async function ensureMetaobjectDefinition(admin, shopKey = "default") {
     mutation CreateCartRulesDefinition($definition: MetaobjectDefinitionCreateInput!) {
       metaobjectDefinitionCreate(definition: $definition) {
         metaobjectDefinition { id }
-        userErrors { field message }
+        userErrors { field message code }
       }
     }`,
     { definition: { type: METAOBJECT_TYPE, name: "CartRules rule", fieldDefinitions: FIELD_DEFINITIONS } },
   );
-  const errors = data?.metaobjectDefinitionCreate?.userErrors;
-  if (errors?.length) throw new Error(`Could not create cartrules_rule definition: ${JSON.stringify(errors)}`);
+  const errors = data?.metaobjectDefinitionCreate?.userErrors ?? [];
+  // TAKEN: a concurrent request on a fresh install created it first. Re-run
+  // once so any field it lacks still gets added.
+  if (errors.length && errors.every((e) => e.code === "TAKEN")) return ensureMetaobjectDefinition(admin, shopKey);
+  if (errors.length) throw new Error(`Could not create cartrules_rule definition: ${JSON.stringify(errors)}`);
   definitionReady.add(shopKey);
 }
 
@@ -283,6 +291,16 @@ function parseJson(raw, fallback) {
   }
 }
 
+// Default texts v1 copied into each rule's message. A rule still carrying
+// one exactly was never customized, so it uses the current default instead
+// (the "best price / discount codes" wording is inaccurate: automatic
+// discounts are blocked too — App Store requirement 1.1.4).
+const V1_DEFAULT_MESSAGES = new Set([
+  "This item is already at its best price - discount codes do not apply.",
+  "This item is already at its best price — discount codes do not apply.",
+  "There is a maximum quantity for this item per order.",
+]);
+
 /**
  * Normalized rule used everywhere in the app. Rules saved by v1 (only
  * target_type/target_value/max_quantity, no `config`) map onto the same shape.
@@ -301,7 +319,7 @@ function ruleFromMetaobject(node) {
     title: f.title ?? "",
     ruleType: f.rule_type,
     status: f.status ?? RULE_STATUS.ACTIVE,
-    message: f.message ?? "",
+    message: V1_DEFAULT_MESSAGES.has((f.message ?? "").trim()) ? "" : f.message ?? "",
     value: config.value ?? (f.max_quantity ? Number(f.max_quantity) : null),
     target: config.target ?? legacyTarget,
     comboTarget: config.comboTarget ?? null,
@@ -330,7 +348,54 @@ export async function listRules(admin) {
       }
     }`,
   );
-  return (data?.metaobjects?.nodes ?? []).map(ruleFromMetaobject);
+  const rules = (data?.metaobjects?.nodes ?? []).map(ruleFromMetaobject);
+  await fillMissingTargetLabels(admin, rules);
+  return rules;
+}
+
+/**
+ * v1 rules stored only a collection/product GID, so they'd show as
+ * "gid://shopify/Collection/…" in the admin. Looks the names up (one query,
+ * only when something is missing); a re-save then stores them.
+ */
+async function fillMissingTargetLabels(admin, rules) {
+  const missing = new Set();
+  for (const r of rules) {
+    for (const t of [r.target, r.comboTarget]) {
+      if (!t?.values?.length) continue;
+      t.values.forEach((v, i) => {
+        if (!t.labels?.[i] && typeof v === "string" && v.startsWith("gid://shopify/")) missing.add(v);
+      });
+    }
+  }
+  if (missing.size === 0) return;
+  let names = new Map();
+  try {
+    const result = await gql(
+      admin,
+      `#graphql
+      query CartRulesTargetNames($ids: [ID!]!) {
+        nodes(ids: $ids) {
+          id
+          ... on Collection { title }
+          ... on Product { title }
+          ... on ProductVariant { displayName }
+        }
+      }`,
+      { ids: [...missing].slice(0, 250) },
+    );
+    names = new Map((result?.nodes ?? []).filter(Boolean).map((n) => [n.id, n.title ?? n.displayName]));
+  } catch (error) {
+    // Cosmetic only — fall back to the ids rather than fail the page.
+    console.warn("Could not look up rule target names", error?.message ?? error);
+    return;
+  }
+  for (const r of rules) {
+    for (const t of [r.target, r.comboTarget]) {
+      if (!t?.values?.length) continue;
+      t.labels = t.values.map((v, i) => t.labels?.[i] || names.get(v) || v);
+    }
+  }
 }
 
 export async function getRule(admin, id) {
@@ -344,7 +409,9 @@ export async function getRule(admin, id) {
   );
   const node = data?.metaobject;
   if (!node || node.type !== METAOBJECT_TYPE) return null;
-  return ruleFromMetaobject(node);
+  const rule = ruleFromMetaobject(node);
+  await fillMissingTargetLabels(admin, [rule]);
+  return rule;
 }
 
 const cleanList = (list) =>

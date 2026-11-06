@@ -115,7 +115,7 @@ const PLAN_COPY = [
     features: [
       "3 active rules",
       "Quantity rules (maximum & minimum)",
-      "Discount rules (block discount codes)",
+      "Discount rules (block discounts)",
       "Basic targeting: all products, products, variants",
       "7-day activity history",
     ],

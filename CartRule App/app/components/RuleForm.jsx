@@ -40,7 +40,7 @@ import {
 import { describeRule, describeTarget, describeCustomer, formatMoney, formatDateTime } from "../models/ruleDisplay";
 import { lockedFeaturesClient, FEATURE_PLANS } from "../models/planFeatures";
 import { zonedToUtcIso, utcIsoToZoned } from "../utils/time";
-import { renderMessage } from "../../extensions/cartrules-validation/src/engine.js";
+import { renderMessage } from "../models/ruleEngine.generated.js";
 import { Box } from "./ui";
 import { COUNTRY_CODES, countryName } from "./countries";
 

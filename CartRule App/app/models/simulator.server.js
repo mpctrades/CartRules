@@ -2,7 +2,7 @@
 // SAME engine the checkout Function runs (extensions/cartrules-validation/
 // src/engine.js), with the rule converted by the same buildRulesCache the
 // live cache uses — so the result is what checkout would do, not a guess.
-import { evaluateCart } from "../../extensions/cartrules-validation/src/engine.js";
+import { evaluateCart } from "./ruleEngine.generated.js";
 import {
   buildRulesCache,
   listRules,

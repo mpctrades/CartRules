@@ -3,7 +3,7 @@ import { useLoaderData, useNavigate, useSearchParams } from "@remix-run/react";
 import { Badge, BlockStack, Button, InlineStack, Text } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { getPlan, lockedFeatures } from "../models/plan.server";
-import { TEMPLATES, TEMPLATE_CATEGORIES } from "../models/templates";
+import { TEMPLATES, TEMPLATE_CATEGORIES, templateRuleForPlan } from "../models/templates";
 import { RULE_TYPE_INFO, TARGET_INFO } from "../models/ruleConstants";
 import { describeTarget, describeCustomer } from "../models/ruleDisplay";
 import { AppPage, Segmented } from "../components/ui";
@@ -13,22 +13,20 @@ import { AppPage, Segmented } from "../components/ui";
 export const loader = async ({ request }) => {
   const { admin, session, billing } = await authenticate.admin(request);
   const plan = await getPlan(admin, billing, session.shop);
-  const requiredPlan = Object.fromEntries(
-    TEMPLATES.map((t) => {
-      const rule = {
-        ...t.rule,
-        schedule: t.rule.scheduled ? { startsAt: "pending", endsAt: null } : null,
-      };
-      const locked = lockedFeatures(rule, plan.name);
-      const needs = locked.length ? (locked.some((f) => f.plan === "Pro") ? "Pro" : "Growth") : null;
-      return [t.id, needs];
-    }),
-  );
-  return json({ plan: plan.name, requiredPlan });
+  const requiredPlan = {};
+  const targets = {};
+  for (const t of TEMPLATES) {
+    const base = templateRuleForPlan(t, plan.name);
+    const rule = { ...base, schedule: base.scheduled ? { startsAt: "pending", endsAt: null } : null };
+    const locked = lockedFeatures(rule, plan.name);
+    requiredPlan[t.id] = locked.length ? (locked.some((f) => f.plan === "Pro") ? "Pro" : "Growth") : null;
+    targets[t.id] = base.target;
+  }
+  return json({ plan: plan.name, requiredPlan, targets });
 };
 
 export default function Templates() {
-  const { requiredPlan } = useLoaderData();
+  const { requiredPlan, targets } = useLoaderData();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const category = TEMPLATE_CATEGORIES.some((c) => c.id === searchParams.get("category"))
@@ -58,6 +56,7 @@ export default function Templates() {
       <div className="cr-grid cr-grid--3">
         {shown.map((t) => {
           const needs = requiredPlan[t.id];
+          const target = targets[t.id] ?? t.rule.target;
           const extras = [];
           if (t.rule.customer) extras.push(describeCustomer(t.rule.customer));
           if (t.rule.scheduled) extras.push("Runs on a schedule");
@@ -79,9 +78,9 @@ export default function Templates() {
               </Text>
               <div className="cr-muted" style={{ marginTop: "auto" }}>
                 {RULE_TYPE_INFO[t.rule.ruleType]?.title} ·{" "}
-                {t.rule.target.type !== "all" && !t.rule.target.values.length
-                  ? `${TARGET_INFO[t.rule.target.type]?.label} you choose`
-                  : describeTarget(t.rule.target)}
+                {target.type !== "all" && !target.values.length
+                  ? `${TARGET_INFO[target.type]?.label} you choose`
+                  : describeTarget(target)}
                 {extras.length ? ` · ${extras.join(" · ")}` : ""}
               </div>
               <div>

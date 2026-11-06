@@ -229,13 +229,15 @@ function StoreHealth({ data, navigate, fetcher }) {
         : { kind: "off", label: "Couldn't check" };
 
   const rows = [
-    { key: "checkout", label: "Checkout validation", ...checkoutRow },
-    { key: "product", label: "Product page notices", ...product },
-    { key: "cart", label: "Cart quantity guard", ...cart },
+    // `status` is the state's own label; spreading it as `label` would
+    // overwrite the row name.
+    { key: "checkout", name: "Checkout validation", status: checkoutRow },
+    { key: "product", name: "Product page notices", status: product },
+    { key: "cart", name: "Cart quantity guard", status: cart },
     {
       key: "conflicts",
-      label: "Rule conflicts",
-      ...(conflicts.length ? { kind: "warn", label: `${conflicts.length} found` } : { kind: "ok", label: "None" }),
+      name: "Rule conflicts",
+      status: conflicts.length ? { kind: "warn", label: `${conflicts.length} found` } : { kind: "ok", label: "None" },
     },
   ];
 
@@ -267,10 +269,10 @@ function StoreHealth({ data, navigate, fetcher }) {
       <div className="cr-list">
         {rows.map((row) => (
           <div key={row.key} className="cr-list-row">
-            <Text as="span">{row.label}</Text>
-            <StatusText kind={row.kind}>
-              {row.label}
-              {row.kind === "ok" ? " ✓" : ""}
+            <Text as="span">{row.name}</Text>
+            <StatusText kind={row.status.kind}>
+              {row.status.label}
+              {row.status.kind === "ok" ? " ✓" : ""}
             </StatusText>
           </div>
         ))}

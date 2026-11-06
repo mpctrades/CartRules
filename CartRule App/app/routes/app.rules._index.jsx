@@ -463,7 +463,7 @@ export default function RulesPage() {
                 labelHidden
                 value={scope}
                 onChange={setScope}
-                options={[{ label: "Scope: All", value: "all" }, ...Object.entries(TARGET_INFO).map(([value, info]) => ({ label: info.label, value }))]}
+                options={[{ label: "Scope: All", value: "all" }, ...Object.entries(TARGET_INFO).filter(([value]) => value !== "all").map(([value, info]) => ({ label: info.label, value }))]}
               />
               <Popover
                 active={moreOpen}

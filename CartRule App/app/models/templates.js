@@ -3,6 +3,7 @@
 // still picks their own products and saves; nothing is activated by the
 // template itself. Client-safe (no *.server suffix).
 import { RULE_TYPES, TARGET_TYPES } from "./ruleConstants";
+import { lockedFeaturesClient } from "./planFeatures";
 
 export const TEMPLATE_CATEGORIES = [
   { id: "all", label: "All" },
@@ -127,4 +128,19 @@ export const TEMPLATES = [
 
 export function getTemplate(id) {
   return TEMPLATES.find((t) => t.id === id) ?? null;
+}
+
+/**
+ * A template's rule as the shop's plan can use it. When the only paid part
+ * is tag/collection targeting, Free shops get the same rule targeting
+ * products they pick — so every Free-plan rule type has a template that
+ * works without upgrading. Anything else paid (types, customers…) stays as is.
+ */
+export function templateRuleForPlan(template, plan) {
+  const rule = template.rule;
+  const locked = lockedFeaturesClient(rule, plan);
+  if (locked.length && locked.every((f) => f.key === "target:tag" || f.key === "target:collection")) {
+    return { ...rule, target: { type: TARGET_TYPES.PRODUCT, values: [], labels: [] } };
+  }
+  return rule;
 }

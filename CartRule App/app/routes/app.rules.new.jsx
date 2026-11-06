@@ -4,7 +4,7 @@ import { Button } from "@shopify/polaris";
 import { ArrowLeftIcon } from "@shopify/polaris-icons";
 import { loadAppContext } from "../models/context.server";
 import { loadRuleFormOptions, saveRuleFromForm, formDefaults } from "../models/ruleForm.server";
-import { getTemplate } from "../models/templates";
+import { getTemplate, templateRuleForPlan } from "../models/templates";
 import RuleForm from "../components/RuleForm";
 import { AppPage } from "../components/ui";
 
@@ -21,7 +21,7 @@ export const loader = async ({ request }) => {
     defaultMessages: formDefaults(ctx.settings),
     // Templates only pre-fill the form — nothing is saved or activated until
     // the merchant chooses Save.
-    initial: template ? { ...template.rule, templateId: template.id } : null,
+    initial: template ? { ...templateRuleForPlan(template, ctx.plan.name), templateId: template.id } : null,
     templateTitle: template?.title ?? null,
   });
 };

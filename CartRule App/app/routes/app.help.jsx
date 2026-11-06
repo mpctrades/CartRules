@@ -61,7 +61,7 @@ const ARTICLES = [
   {
     section: "creating-rules",
     title: "Rule types",
-    body: "Maximum and minimum quantity, block discount codes, minimum and maximum cart value, quantity multiples (e.g. 6, 12, 18), maximum cart items, and product combinations that can't be bought together.",
+    body: "Maximum and minimum quantity, block discounts, minimum and maximum cart value, quantity multiples (e.g. 6, 12, 18), maximum cart items, and product combinations that can't be bought together.",
   },
   {
     section: "creating-rules",
@@ -113,7 +113,7 @@ const FAQ = [
   },
   {
     q: "Can I block discounts for selected products?",
-    a: "Yes. Create a Block discount codes rule for those products. If a discount is on one of them, checkout is blocked with your message until the code is removed. It counts every discount on those products, including automatic discounts, so exclude them from automatic discounts you run.",
+    a: "Yes. Create a Block discounts rule for those products. If a discount is on one of them, checkout is blocked with your message until the code is removed. It counts every discount on those products, including automatic discounts, so exclude them from automatic discounts you run.",
   },
   {
     q: "Can I pause a rule?",
@@ -148,7 +148,7 @@ const TROUBLESHOOTING = [
   },
   {
     q: "Discount is still applying",
-    a: "A Block discount codes rule doesn't remove a code — it stops checkout until the shopper removes it, and shows your message. If checkout still goes through, check that the rule is Active, the product matches its target, protection is on, and the CartRules checkout rule is enabled in Shopify.",
+    a: "A Block discounts rule doesn't remove a discount — it stops checkout until the shopper removes it, and shows your message. If checkout still goes through, check that the rule is Active, the product matches its target, protection is on, and the CartRules checkout rule is enabled in Shopify.",
   },
 ];
 
