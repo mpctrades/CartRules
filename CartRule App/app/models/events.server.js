@@ -28,17 +28,35 @@ export const EVENT_TYPE_BY_RULE_TYPE = {
   product_combination: "combination_blocked",
 };
 
-export const QUANTITY_EVENTS = ["quantity_blocked", "minimum_not_met", "multiple_not_met", "max_items_blocked"];
+export const QUANTITY_EVENTS = [
+  "quantity_blocked",
+  "minimum_not_met",
+  "multiple_not_met",
+  "max_items_blocked",
+];
 export const DISCOUNT_EVENTS = ["discount_blocked"];
-export const CART_EVENTS = ["minimum_cart_not_met", "maximum_cart_value_blocked", "combination_blocked"];
-const BLOCKING_EVENTS = [...QUANTITY_EVENTS, ...DISCOUNT_EVENTS, ...CART_EVENTS, "checkout_blocked"];
+export const CART_EVENTS = [
+  "minimum_cart_not_met",
+  "maximum_cart_value_blocked",
+  "combination_blocked",
+];
+const BLOCKING_EVENTS = [
+  ...QUANTITY_EVENTS,
+  ...DISCOUNT_EVENTS,
+  ...CART_EVENTS,
+  "checkout_blocked",
+];
 
 // How far back each plan can look (matches Plan & billing copy).
 export const HISTORY_DAYS = { Free: 7, Growth: 90, Pro: 365 };
 
 export function hashCartKey(shop, token) {
   if (!token) return null;
-  return crypto.createHash("sha256").update(`${shop}:${token}`).digest("hex").slice(0, 24);
+  return crypto
+    .createHash("sha256")
+    .update(`${shop}:${token}`)
+    .digest("hex")
+    .slice(0, 24);
 }
 
 /** Inserts events. Each: { ruleId, ruleTitle, ruleType, eventType, source, productId?, productTitle?, attempted?, allowed?, cartKey?, detail? } */
@@ -54,9 +72,17 @@ export async function recordEvents(shop, events) {
       source: e.source ?? "storefront",
       orderId: "",
       productId: e.productId ? String(e.productId) : null,
-      productTitle: e.productTitle ? String(e.productTitle).slice(0, 200) : null,
-      attempted: Number.isFinite(Number(e.attempted)) && e.attempted !== null ? Number(e.attempted) : null,
-      allowed: Number.isFinite(Number(e.allowed)) && e.allowed !== null ? Number(e.allowed) : null,
+      productTitle: e.productTitle
+        ? String(e.productTitle).slice(0, 200)
+        : null,
+      attempted:
+        Number.isFinite(Number(e.attempted)) && e.attempted !== null
+          ? Number(e.attempted)
+          : null,
+      allowed:
+        Number.isFinite(Number(e.allowed)) && e.allowed !== null
+          ? Number(e.allowed)
+          : null,
       cartKey: e.cartKey ?? null,
       detail: e.detail ? String(e.detail).slice(0, 300) : null,
     }));
@@ -82,14 +108,31 @@ export function resolveRange({ days, from, to }, plan, now = new Date()) {
     if (!Number.isFinite(end.getTime()) || end > now) end = now;
     if (start < earliest) start = earliest;
     if (end < start) end = start;
-    return { start, end, days: Math.max(1, Math.ceil((end - start) / DAY_MS)), custom: true, clamped: maxDays };
+    return {
+      start,
+      end,
+      days: Math.max(1, Math.ceil((end - start) / DAY_MS)),
+      custom: true,
+      clamped: maxDays,
+    };
   }
   const d = clampDays(days, plan);
-  return { start: new Date(now.getTime() - d * DAY_MS), end: now, days: d, custom: false, clamped: maxDays };
+  return {
+    start: new Date(now.getTime() - d * DAY_MS),
+    end: now,
+    days: d,
+    custom: false,
+    clamped: maxDays,
+  };
 }
 
 function liveWhere(shop, start, end, extra = {}) {
-  return { shop, source: { not: "test" }, createdAt: { gte: start, lt: end }, ...extra };
+  return {
+    shop,
+    source: { not: "test" },
+    createdAt: { gte: start, lt: end },
+    ...extra,
+  };
 }
 
 function pctChange(current, previous) {
@@ -99,16 +142,49 @@ function pctChange(current, previous) {
 
 async function windowCounts(shop, start, end, ruleIds) {
   const events = await db.ruleEvent.findMany({
-    where: liveWhere(shop, start, end, ruleIds ? { ruleId: { in: ruleIds } } : {}),
-    select: { eventType: true, cartKey: true, orderId: true },
+    where: liveWhere(
+      shop,
+      start,
+      end,
+      ruleIds ? { ruleId: { in: ruleIds } } : {},
+    ),
+    select: {
+      eventType: true,
+      cartKey: true,
+      orderId: true,
+      attempted: true,
+      allowed: true,
+    },
   });
   const blocking = events.filter((e) => BLOCKING_EVENTS.includes(e.eventType));
   return {
     triggers: blocking.length,
-    discountsBlocked: blocking.filter((e) => DISCOUNT_EVENTS.includes(e.eventType)).length,
-    quantityViolations: blocking.filter((e) => QUANTITY_EVENTS.includes(e.eventType)).length,
-    checkoutsProtected: new Set(blocking.map((e) => e.cartKey || e.orderId).filter(Boolean)).size,
+    unitsHeldBack: unitsHeldBack(blocking),
+    discountsBlocked: blocking.filter((e) =>
+      DISCOUNT_EVENTS.includes(e.eventType),
+    ).length,
+    quantityViolations: blocking.filter((e) =>
+      QUANTITY_EVENTS.includes(e.eventType),
+    ).length,
+    checkoutsProtected: new Set(
+      blocking.map((e) => e.cartKey || e.orderId).filter(Boolean),
+    ).size,
   };
+}
+
+/**
+ * Units shoppers tried to buy above a maximum quantity (attempted − allowed),
+ * i.e. what the storefront notices held back. Only "quantity_blocked" events
+ * carry a meaningful difference; minimums and multiples don't hold units back.
+ */
+function unitsHeldBack(events) {
+  let units = 0;
+  for (const e of events) {
+    if (e.eventType !== "quantity_blocked") continue;
+    const diff = Number(e.attempted) - Number(e.allowed);
+    if (Number.isFinite(diff) && diff > 0) units += diff;
+  }
+  return Math.round(units);
 }
 
 /** KPI cards: the range vs the equal range before it. */
@@ -119,9 +195,13 @@ export async function getKpis(shop, range, { ruleIds = null } = {}) {
     windowCounts(shop, range.start, range.end, ruleIds),
     windowCounts(shop, prevStart, range.start, ruleIds),
   ]);
-  const withChange = (key) => ({ value: current[key], changePct: pctChange(current[key], previous[key]) });
+  const withChange = (key) => ({
+    value: current[key],
+    changePct: pctChange(current[key], previous[key]),
+  });
   return {
     triggers: withChange("triggers"),
+    unitsHeldBack: withChange("unitsHeldBack"),
     discountsBlocked: withChange("discountsBlocked"),
     quantityViolations: withChange("quantityViolations"),
     checkoutsProtected: withChange("checkoutsProtected"),
@@ -142,7 +222,11 @@ export function categoryWhere(category, customerRuleIds = []) {
 }
 
 /** Day-bucketed counts for the activity charts. */
-export async function getActivitySeries(shop, range, { category = "all", customerRuleIds = [], ruleIds = null } = {}) {
+export async function getActivitySeries(
+  shop,
+  range,
+  { category = "all", customerRuleIds = [], ruleIds = null } = {},
+) {
   const events = await db.ruleEvent.findMany({
     where: liveWhere(shop, range.start, range.end, {
       eventType: { in: BLOCKING_EVENTS },
@@ -152,7 +236,11 @@ export async function getActivitySeries(shop, range, { category = "all", custome
     select: { createdAt: true },
   });
   const buckets = new Map();
-  const startDay = Date.UTC(range.start.getUTCFullYear(), range.start.getUTCMonth(), range.start.getUTCDate());
+  const startDay = Date.UTC(
+    range.start.getUTCFullYear(),
+    range.start.getUTCMonth(),
+    range.start.getUTCDate(),
+  );
   for (let t = startDay; t <= range.end.getTime(); t += DAY_MS) {
     buckets.set(new Date(t).toISOString().slice(0, 10), 0);
   }
@@ -160,7 +248,10 @@ export async function getActivitySeries(shop, range, { category = "all", custome
     const key = e.createdAt.toISOString().slice(0, 10);
     if (buckets.has(key)) buckets.set(key, buckets.get(key) + 1);
   }
-  return Array.from(buckets.entries()).map(([date, count]) => ({ date, count }));
+  return Array.from(buckets.entries()).map(([date, count]) => ({
+    date,
+    count,
+  }));
 }
 
 /** Analytics breakdowns: top rules, top products, rule-type mix. */
@@ -170,7 +261,11 @@ export async function getBreakdowns(shop, range, { ruleIds = null } = {}) {
     ...(ruleIds ? { ruleId: { in: ruleIds } } : {}),
   });
   const [byRule, byProduct, byType] = await Promise.all([
-    db.ruleEvent.groupBy({ by: ["ruleId", "ruleTitle"], where, _count: { _all: true } }),
+    db.ruleEvent.groupBy({
+      by: ["ruleId", "ruleTitle"],
+      where,
+      _count: { _all: true },
+    }),
     db.ruleEvent.groupBy({
       by: ["productId", "productTitle"],
       where: { ...where, productId: { not: null } },
@@ -178,25 +273,85 @@ export async function getBreakdowns(shop, range, { ruleIds = null } = {}) {
     }),
     db.ruleEvent.groupBy({ by: ["ruleType"], where, _count: { _all: true } }),
   ]);
-  const top = (rows, n) => rows.sort((a, b) => b._count._all - a._count._all).slice(0, n);
+  const top = (rows, n) =>
+    rows.sort((a, b) => b._count._all - a._count._all).slice(0, n);
   // A rule renamed mid-range shows up under each title — merge by id.
   const rules = new Map();
   for (const r of byRule) {
-    const cur = rules.get(r.ruleId) ?? { ruleId: r.ruleId, title: r.ruleTitle, count: 0 };
+    const cur = rules.get(r.ruleId) ?? {
+      ruleId: r.ruleId,
+      title: r.ruleTitle,
+      count: 0,
+    };
     cur.count += r._count._all;
     rules.set(r.ruleId, cur);
   }
   const products = new Map();
   for (const p of byProduct) {
-    const cur = products.get(p.productId) ?? { productId: p.productId, title: p.productTitle, count: 0 };
+    const cur = products.get(p.productId) ?? {
+      productId: p.productId,
+      title: p.productTitle,
+      count: 0,
+    };
     cur.count += p._count._all;
     products.set(p.productId, cur);
   }
   return {
     topRules: [...rules.values()].sort((a, b) => b.count - a.count).slice(0, 5),
-    topProducts: [...products.values()].sort((a, b) => b.count - a.count).slice(0, 5),
-    byType: top(byType, 10).map((t) => ({ ruleType: t.ruleType, count: t._count._all })),
+    topProducts: [...products.values()]
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5),
+    byType: top(byType, 10).map((t) => ({
+      ruleType: t.ruleType,
+      count: t._count._all,
+    })),
   };
+}
+
+/**
+ * Per-rule numbers for the Analytics "Rule performance" table: triggers,
+ * distinct carts corrected, units held back and when it last fired.
+ * Returns { [ruleId]: { triggers, carts, units, lastAt } }.
+ */
+export async function getRulePerformance(shop, range) {
+  const events = await db.ruleEvent.findMany({
+    where: liveWhere(shop, range.start, range.end, {
+      eventType: { in: BLOCKING_EVENTS },
+    }),
+    select: {
+      ruleId: true,
+      eventType: true,
+      cartKey: true,
+      orderId: true,
+      attempted: true,
+      allowed: true,
+      createdAt: true,
+    },
+  });
+  const byRule = new Map();
+  for (const e of events) {
+    const cur = byRule.get(e.ruleId) ?? {
+      events: [],
+      carts: new Set(),
+      lastAt: null,
+    };
+    cur.events.push(e);
+    const cart = e.cartKey || e.orderId;
+    if (cart) cur.carts.add(cart);
+    if (!cur.lastAt || e.createdAt > cur.lastAt) cur.lastAt = e.createdAt;
+    byRule.set(e.ruleId, cur);
+  }
+  return Object.fromEntries(
+    [...byRule.entries()].map(([id, r]) => [
+      id,
+      {
+        triggers: r.events.length,
+        carts: r.carts.size,
+        units: unitsHeldBack(r.events),
+        lastAt: r.lastAt?.toISOString() ?? null,
+      },
+    ]),
+  );
 }
 
 /**
@@ -205,7 +360,16 @@ export async function getBreakdowns(shop, range, { ruleIds = null } = {}) {
  */
 export async function getActivityFeed(
   shop,
-  { range = null, ruleId = null, eventType = null, result = "all", search = "", source = null, limit = 25, offset = 0 } = {},
+  {
+    range = null,
+    ruleId = null,
+    eventType = null,
+    result = "all",
+    search = "",
+    source = null,
+    limit = 25,
+    offset = 0,
+  } = {},
 ) {
   const where = {
     shop,
@@ -216,15 +380,39 @@ export async function getActivityFeed(
     // A chosen event type must also match the result filter (e.g. "Rule
     // passed" + "Blocked" is an empty set, not "Rule passed").
     ...(result === "blocked"
-      ? { eventType: eventType ? (BLOCKING_EVENTS.includes(eventType) ? eventType : "__none__") : { in: BLOCKING_EVENTS } }
+      ? {
+          eventType: eventType
+            ? BLOCKING_EVENTS.includes(eventType)
+              ? eventType
+              : "__none__"
+            : { in: BLOCKING_EVENTS },
+        }
       : {}),
-    ...(result === "passed" ? { eventType: !eventType || eventType === "rule_passed" ? "rule_passed" : "__none__" } : {}),
+    ...(result === "passed"
+      ? {
+          eventType:
+            !eventType || eventType === "rule_passed"
+              ? "rule_passed"
+              : "__none__",
+        }
+      : {}),
     ...(search
-      ? { OR: [{ ruleTitle: { contains: search } }, { productTitle: { contains: search } }, { detail: { contains: search } }] }
+      ? {
+          OR: [
+            { ruleTitle: { contains: search } },
+            { productTitle: { contains: search } },
+            { detail: { contains: search } },
+          ],
+        }
       : {}),
   };
   const [events, total] = await Promise.all([
-    db.ruleEvent.findMany({ where, orderBy: { createdAt: "desc" }, take: limit, skip: offset }),
+    db.ruleEvent.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      skip: offset,
+    }),
     db.ruleEvent.count({ where }),
   ]);
   return { events, total };
@@ -232,33 +420,51 @@ export async function getActivityFeed(
 
 /** Per-rule counts in the plan's history window, for the Rules table "Activity" column. */
 export async function getTriggerCountsByRule(shop, plan) {
-  const since = new Date(Date.now() - (HISTORY_DAYS[plan] ?? HISTORY_DAYS.Free) * DAY_MS);
+  const since = new Date(
+    Date.now() - (HISTORY_DAYS[plan] ?? HISTORY_DAYS.Free) * DAY_MS,
+  );
   const grouped = await db.ruleEvent.groupBy({
     by: ["ruleId"],
-    where: { shop, source: { not: "test" }, eventType: { in: BLOCKING_EVENTS }, createdAt: { gte: since } },
+    where: {
+      shop,
+      source: { not: "test" },
+      eventType: { in: BLOCKING_EVENTS },
+      createdAt: { gte: since },
+    },
     _count: { _all: true },
   });
   return Object.fromEntries(grouped.map((g) => [g.ruleId, g._count._all]));
 }
 
 export async function hasAnyEvent(shop, { includeTests = true } = {}) {
-  const count = await db.ruleEvent.count({ where: { shop, ...(includeTests ? {} : { source: { not: "test" } }) } });
+  const count = await db.ruleEvent.count({
+    where: { shop, ...(includeTests ? {} : { source: { not: "test" } }) },
+  });
   return count > 0;
 }
 
 /** Rule events this calendar month (UTC), for the Billing summary. */
 export async function getMonthlyEventCount(shop) {
   const now = new Date();
-  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const monthStart = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
+  );
   return db.ruleEvent.count({
-    where: { shop, source: { not: "test" }, eventType: { in: BLOCKING_EVENTS }, createdAt: { gte: monthStart } },
+    where: {
+      shop,
+      source: { not: "test" },
+      eventType: { in: BLOCKING_EVENTS },
+      createdAt: { gte: monthStart },
+    },
   });
 }
 
 /** Removes events older than the longest history any plan offers. */
 export async function purgeOldEvents() {
   const cutoff = new Date(Date.now() - (HISTORY_DAYS.Pro + 30) * DAY_MS);
-  const { count } = await db.ruleEvent.deleteMany({ where: { createdAt: { lt: cutoff } } });
+  const { count } = await db.ruleEvent.deleteMany({
+    where: { createdAt: { lt: cutoff } },
+  });
   return count;
 }
 
