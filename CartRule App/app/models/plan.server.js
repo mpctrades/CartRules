@@ -50,10 +50,12 @@ export function activeRuleRoom(plan, activeCount) {
  * any active rules beyond the cap, keeping the most recently updated ones.
  * Returns the number of rules paused.
  */
-export async function enforcePlanLimits(admin, plan) {
+export async function enforcePlanLimits(admin, plan, { capOnly = false } = {}) {
   const rules = await listRules(admin);
   const active = rules.filter((r) => r.status === RULE_STATUS.ACTIVE);
-  const toPause = new Set(active.filter((r) => lockedFeatures(r, plan).length > 0).map((r) => r.id));
+  const toPause = new Set(
+    capOnly ? [] : active.filter((r) => lockedFeatures(r, plan).length > 0).map((r) => r.id),
+  );
   if (plan === "Free") {
     const remaining = active.filter((r) => !toPause.has(r.id));
     for (const r of remaining.slice(FREE_PLAN_RULE_LIMIT)) toPause.add(r.id);
@@ -64,4 +66,33 @@ export async function enforcePlanLimits(admin, plan) {
   }
   await syncRulesCache(admin, { activateValidation: false });
   return toPause.size;
+}
+
+/**
+ * The plan Shopify says the shop is paying for right now. Reads the app
+ * installation directly (no `billing` helper or request needed), so it also
+ * works from afterAuth and from the app_subscriptions/update webhook.
+ */
+export async function getCurrentPlanName(admin) {
+  const response = await admin.graphql(`#graphql
+    query CartRulesActiveSubscriptions {
+      currentAppInstallation { activeSubscriptions { name status } }
+    }`);
+  const json = await response.json();
+  const subscriptions = json.data?.currentAppInstallation?.activeSubscriptions;
+  if (!Array.isArray(subscriptions)) throw new Error("Could not read the app's subscriptions");
+  const active = new Set(subscriptions.filter((s) => s.status === "ACTIVE").map((s) => s.name));
+  if (active.has(BILLING_PLANS.PRO)) return "Pro";
+  if (active.has(BILLING_PLANS.GROWTH)) return "Growth";
+  return "Free";
+}
+
+/**
+ * Applies the limits of whatever plan the shop is on now. Rules outlive an
+ * uninstall (they're the shop's own metaobjects) but the subscription
+ * doesn't, and a subscription can end outside the app (cancelled, declined,
+ * frozen) — both would otherwise keep paid-only rules enforced.
+ */
+export async function enforceCurrentPlanLimits(admin, options) {
+  return enforcePlanLimits(admin, await getCurrentPlanName(admin), options);
 }

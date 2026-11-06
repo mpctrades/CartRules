@@ -167,7 +167,7 @@ function formatAmount(value, currency) {
 export const FALLBACK_MESSAGES = {
   max_quantity: "You can purchase a maximum of {{limit}} of {{product}}.",
   min_quantity: "{{product}} has a minimum order quantity of {{limit}}.",
-  no_discount: "Discount codes can't be used on {{product}}.",
+  no_discount: "Discounts can't be applied to {{product}}. Remove the discount to continue.",
   cart_min_value: "Your cart must be at least {{limit}} to check out.",
   cart_max_value: "Your cart can't be more than {{limit}}.",
   quantity_multiple: "{{product}} is sold in multiples of {{limit}}.",

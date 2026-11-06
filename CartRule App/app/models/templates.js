@@ -33,11 +33,11 @@ export const TEMPLATES = [
   {
     id: "no-discount",
     title: "No discount",
-    summary: "Block discount codes",
-    description: "Keep discount codes off products that are already at their best price.",
+    summary: "Block discounts",
+    description: "Keep discounts (codes and automatic) off products you don't want to discount.",
     categories: ["discount"],
     rule: {
-      title: "No discount codes",
+      title: "No discounts",
       ruleType: RULE_TYPES.NO_DISCOUNT,
       target: { type: TARGET_TYPES.TAG, values: ["no-discount"], labels: [] },
     },

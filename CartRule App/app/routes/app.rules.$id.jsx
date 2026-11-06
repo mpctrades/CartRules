@@ -11,7 +11,7 @@ import { getScheduleStatus } from "../models/ruleDisplay";
 
 export const loader = async ({ request, params }) => {
   const ctx = await loadAppContext(request, { rules: false });
-  const rule = await getRule(ctx.admin, decodeURIComponent(params.id));
+  const rule = await getRule(ctx.admin, params.id /* already decoded by Remix */);
   if (!rule) throw new Response("Rule not found", { status: 404 });
   const options = await loadRuleFormOptions(ctx.admin);
   return json({
@@ -26,7 +26,7 @@ export const loader = async ({ request, params }) => {
 
 export const action = async ({ request, params }) => {
   const ctx = await loadAppContext(request, { rules: false, settings: false });
-  const existing = await getRule(ctx.admin, decodeURIComponent(params.id));
+  const existing = await getRule(ctx.admin, params.id /* already decoded by Remix */);
   if (!existing) return json({ ok: false, error: "This rule no longer exists." }, { status: 404 });
   const formData = await request.formData();
   return saveRuleFromForm({ admin: ctx.admin, billing: ctx.billing, shop: ctx.shop, formData, existing });

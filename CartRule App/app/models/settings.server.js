@@ -15,7 +15,7 @@ const DEFAULTS_BY_LOCALE = {
   en: {
     max_quantity: "You can purchase a maximum of {{limit}} of {{product}}.",
     min_quantity: "{{product}} has a minimum order quantity of {{limit}}.",
-    no_discount: "Discount codes can't be used on {{product}}.",
+    no_discount: "Discounts can't be applied to {{product}}. Remove the discount to continue.",
     cart_min_value: "Your cart must be at least {{limit}} to check out.",
     cart_max_value: "Your cart can't be more than {{limit}}.",
     quantity_multiple: "{{product}} is sold in multiples of {{limit}}.",
@@ -26,7 +26,7 @@ const DEFAULTS_BY_LOCALE = {
   fr: {
     max_quantity: "Vous pouvez acheter au maximum {{limit}} × {{product}}.",
     min_quantity: "{{product}} doit être commandé par {{limit}} minimum.",
-    no_discount: "Les codes de réduction ne s'appliquent pas à {{product}}.",
+    no_discount: "Les réductions ne s'appliquent pas à {{product}}.",
     cart_min_value: "Votre panier doit atteindre au moins {{limit}} pour passer commande.",
     cart_max_value: "Votre panier ne peut pas dépasser {{limit}}.",
     quantity_multiple: "{{product}} est vendu par multiples de {{limit}}.",
@@ -37,7 +37,7 @@ const DEFAULTS_BY_LOCALE = {
   de: {
     max_quantity: "Sie können maximal {{limit}} × {{product}} kaufen.",
     min_quantity: "Für {{product}} gilt eine Mindestbestellmenge von {{limit}}.",
-    no_discount: "Rabattcodes gelten nicht für {{product}}.",
+    no_discount: "Rabatte gelten nicht für {{product}}.",
     cart_min_value: "Ihr Warenkorb muss mindestens {{limit}} betragen.",
     cart_max_value: "Ihr Warenkorb darf {{limit}} nicht überschreiten.",
     quantity_multiple: "{{product}} wird nur in Vielfachen von {{limit}} verkauft.",
@@ -48,7 +48,7 @@ const DEFAULTS_BY_LOCALE = {
   es: {
     max_quantity: "Puedes comprar como máximo {{limit}} de {{product}}.",
     min_quantity: "{{product}} tiene una cantidad mínima de pedido de {{limit}}.",
-    no_discount: "Los códigos de descuento no se aplican a {{product}}.",
+    no_discount: "Los descuentos no se aplican a {{product}}.",
     cart_min_value: "Tu carrito debe ser de al menos {{limit}} para pagar.",
     cart_max_value: "Tu carrito no puede superar {{limit}}.",
     quantity_multiple: "{{product}} se vende en múltiplos de {{limit}}.",
@@ -59,7 +59,7 @@ const DEFAULTS_BY_LOCALE = {
   it: {
     max_quantity: "Puoi acquistare al massimo {{limit}} di {{product}}.",
     min_quantity: "{{product}} ha una quantità minima d'ordine di {{limit}}.",
-    no_discount: "I codici sconto non si applicano a {{product}}.",
+    no_discount: "Gli sconti non si applicano a {{product}}.",
     cart_min_value: "Il carrello deve essere di almeno {{limit}} per procedere.",
     cart_max_value: "Il carrello non può superare {{limit}}.",
     quantity_multiple: "{{product}} è venduto in multipli di {{limit}}.",
@@ -70,7 +70,7 @@ const DEFAULTS_BY_LOCALE = {
   nl: {
     max_quantity: "Je kunt maximaal {{limit}} van {{product}} kopen.",
     min_quantity: "Voor {{product}} geldt een minimale bestelhoeveelheid van {{limit}}.",
-    no_discount: "Kortingscodes gelden niet voor {{product}}.",
+    no_discount: "Kortingen gelden niet voor {{product}}.",
     cart_min_value: "Je winkelwagen moet minimaal {{limit}} zijn om af te rekenen.",
     cart_max_value: "Je winkelwagen mag niet meer dan {{limit}} zijn.",
     quantity_multiple: "{{product}} wordt verkocht per {{limit}} stuks.",
@@ -81,7 +81,7 @@ const DEFAULTS_BY_LOCALE = {
   "pt-BR": {
     max_quantity: "Você pode comprar no máximo {{limit}} de {{product}}.",
     min_quantity: "{{product}} tem quantidade mínima de pedido de {{limit}}.",
-    no_discount: "Códigos de desconto não se aplicam a {{product}}.",
+    no_discount: "Descontos não se aplicam a {{product}}.",
     cart_min_value: "Seu carrinho precisa ter pelo menos {{limit}} para finalizar.",
     cart_max_value: "Seu carrinho não pode passar de {{limit}}.",
     quantity_multiple: "{{product}} é vendido em múltiplos de {{limit}}.",
@@ -92,7 +92,7 @@ const DEFAULTS_BY_LOCALE = {
   ja: {
     max_quantity: "{{product}}は1回のご注文につき{{limit}}点までです。",
     min_quantity: "{{product}}の最小注文数は{{limit}}点です。",
-    no_discount: "{{product}}には割引コードを使用できません。",
+    no_discount: "{{product}}には割引を適用できません。",
     cart_min_value: "ご注文には{{limit}}以上のお買い上げが必要です。",
     cart_max_value: "カートの合計は{{limit}}までです。",
     quantity_multiple: "{{product}}は{{limit}}点単位での販売です。",

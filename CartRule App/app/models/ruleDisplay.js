@@ -81,7 +81,7 @@ export function describeRule(rule, currency) {
     case RULE_TYPES.MIN_QUANTITY:
       return `Minimum ${v} per order · ${scope}`;
     case RULE_TYPES.NO_DISCOUNT:
-      return `Discount codes blocked · ${scope}`;
+      return `Discounts blocked · ${scope}`;
     case RULE_TYPES.CART_MIN_VALUE:
       return `Cart must be at least ${formatMoney(v, currency)} · ${scope}`;
     case RULE_TYPES.CART_MAX_VALUE:
@@ -153,7 +153,7 @@ export function describeEvent(event, currency) {
   const money = event.ruleType === "cart_min_value" || event.ruleType === "cart_max_value";
   const fmt = (n) => (money ? formatMoney(n, currency) : String(n));
   if (event.eventType === "discount_blocked") {
-    return event.detail?.startsWith("Code ") ? `${event.detail} was rejected` : "Discount code rejected";
+    return event.detail?.startsWith("Code ") ? `${event.detail} was rejected` : "Discount rejected";
   }
   if (event.attempted != null && event.allowed != null) {
     if (money) return `Cart total ${fmt(event.attempted)} · Limit ${fmt(event.allowed)}`;

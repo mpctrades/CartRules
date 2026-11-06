@@ -6,7 +6,7 @@ application_url = "https://dev.cartrule.mpctrades.com"
 embedded = true
 
 [build]
-automatically_update_urls_on_dev = true
+automatically_update_urls_on_dev = false
 
 [webhooks]
 api_version = "2026-07"
@@ -30,6 +30,12 @@ api_version = "2026-07"
   [[webhooks.subscriptions]]
   uri = "/webhooks/app/uninstalled"
   topics = [ "app/uninstalled" ]
+
+  # Re-applies plan limits when a subscription ends or changes outside the
+  # app (cancelled, declined, frozen, Pro -> Growth).
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/subscriptions_update"
+  topics = [ "app_subscriptions/update" ]
 
   # DISABLED until Protected Customer Data access is approved for this app
   # (Partner Dashboard → this app → Distribution → API access). Shopify

@@ -35,9 +35,9 @@ export const RULE_TYPE_INFO = {
     plan: "Free",
   },
   [RULE_TYPES.NO_DISCOUNT]: {
-    title: "Block discount codes",
+    title: "Block discounts",
     short: "Block discount",
-    description: "Prevent discount codes from applying.",
+    description: "Prevent discounts (codes and automatic) from applying.",
     valueLabel: null,
     category: "discount",
     plan: "Free",

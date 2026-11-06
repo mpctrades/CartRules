@@ -6,10 +6,12 @@ export const action = async ({ request }) => {
   console.log(`Received ${topic} webhook for ${shop}`);
 
   const current = payload.current;
-  if (session) {
-    await db.session.update({
+  // updateMany: the session can be gone by now (uninstall, dropped expired
+  // token), and a missing row must not turn the webhook into a 500.
+  if (session && Array.isArray(current)) {
+    await db.session.updateMany({
       where: { id: session.id },
-      data: { scope: current.toString() },
+      data: { scope: current.map(String).join(",") },
     });
   }
   return new Response();
