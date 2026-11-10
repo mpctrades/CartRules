@@ -46,14 +46,57 @@ function numericId(gid) {
   return i === -1 ? s : s.slice(i + 1);
 }
 
+// Lookups below are memoized: inside the Function's WebAssembly sandbox
+// every string op is expensive, and re-normalizing each rule's ID/tag lists
+// for every cart line blew Shopify's 11M-instruction budget on carts with
+// ~10+ lines and product-targeted rules (InstructionCountLimitExceededError).
+// Rules and lines aren't mutated during an evaluation, so caching by object
+// identity is safe; WeakMaps let the admin simulator's objects be collected.
+const lowerSets = new WeakMap();
+const idSets = new WeakMap();
+const lineIds = new WeakMap();
+
+/** Lowercased Set of a list, built once per list object. */
+function lowerSet(list) {
+  if (!list || typeof list !== "object") return new Set();
+  let set = lowerSets.get(list);
+  if (!set) {
+    set = new Set();
+    for (const item of list) set.add(lower(item));
+    lowerSets.set(list, set);
+  }
+  return set;
+}
+
+/** Set of numeric IDs of a list of GIDs, built once per list object. */
+function idSet(list) {
+  if (!list || typeof list !== "object") return new Set();
+  let set = idSets.get(list);
+  if (!set) {
+    set = new Set();
+    for (const v of list) set.add(numericId(v));
+    idSets.set(list, set);
+  }
+  return set;
+}
+
+function idsOf(line) {
+  let ids = lineIds.get(line);
+  if (!ids) {
+    ids = { product: numericId(line.productId), variant: numericId(line.variantId) };
+    lineIds.set(line, ids);
+  }
+  return ids;
+}
+
 function includesLower(list, value) {
-  const v = lower(value);
-  for (const item of list || []) if (lower(item) === v) return true;
-  return false;
+  return lowerSet(list).has(lower(value));
 }
 
 function anyShared(list, wanted) {
-  for (const w of wanted || []) if (includesLower(list, w)) return true;
+  if (!list || !wanted || list.length === 0) return false;
+  const have = lowerSet(list);
+  for (const w of wanted) if (have.has(lower(w))) return true;
   return false;
 }
 
@@ -65,11 +108,16 @@ export function lineMatchesTarget(line, target) {
     case "all":
       return true;
     case "product":
-      return values.some((v) => numericId(v) === numericId(line.productId));
+      return idSet(values).has(idsOf(line).product);
     case "variant":
-      return values.some((v) => numericId(v) === numericId(line.variantId));
-    case "collection":
-      return values.some((v) => (line.collections || []).includes(v));
+      return idSet(values).has(idsOf(line).variant);
+    case "collection": {
+      const cols = line.collections || [];
+      if (cols.length === 0) return false;
+      const set = new Set(values);
+      for (const c of cols) if (set.has(c)) return true;
+      return false;
+    }
     case "tag":
       return anyShared(line.tags, values);
     case "vendor":
@@ -140,6 +188,33 @@ export function cartQualifies(rule, cart) {
   return cartConditionsPass(cart, rule.conditions);
 }
 
+/**
+ * Lines of the cart this rule applies to. Same result as
+ * lines.filter((l) => lineQualifies(rule, l)), but product/variant/"all"
+ * targets skip the per-line function calls — the hot path at checkout.
+ */
+function qualifyingLines(rule, lines) {
+  const target = rule.target;
+  const type = target && target.type ? target.type : "all";
+  const conditions = rule.conditions;
+  const hasLineConditions = Array.isArray(conditions) && conditions.length > 0;
+  const out = [];
+  if (type === "product" || type === "variant") {
+    const set = idSet(target.values || []);
+    if (set.size === 0) return out;
+    const key = type === "product" ? "product" : "variant";
+    for (const line of lines) {
+      if (!set.has(idsOf(line)[key])) continue;
+      if (hasLineConditions && !lineConditionsPass(line, conditions)) continue;
+      out.push(line);
+    }
+    return out;
+  }
+  if (type === "all" && !hasLineConditions) return lines.slice();
+  for (const line of lines) if (lineQualifies(rule, line)) out.push(line);
+  return out;
+}
+
 function lineQualifies(rule, line) {
   return lineMatchesTarget(line, rule.target) && lineConditionsPass(line, rule.conditions);
 }
@@ -193,7 +268,7 @@ const DEFAULT_VARS = {
 };
 
 function groupKey(rule, line) {
-  return rule.target && rule.target.type === "variant" ? `v:${numericId(line.variantId)}` : `p:${numericId(line.productId)}`;
+  return rule.target && rule.target.type === "variant" ? "v:" + idsOf(line).variant : "p:" + idsOf(line).product;
 }
 
 /**
@@ -236,8 +311,7 @@ export function evaluateCart(cart, rules, options) {
       const value = Number(rule.value);
       if (!(value >= 1)) continue;
       const groups = new Map();
-      for (const line of lines) {
-        if (!lineQualifies(rule, line)) continue;
+      for (const line of qualifyingLines(rule, lines)) {
         const key = groupKey(rule, line);
         const g = groups.get(key) || { quantity: 0, line };
         g.quantity += Number(line.quantity) || 0;
@@ -264,7 +338,7 @@ export function evaluateCart(cart, rules, options) {
       continue;
     }
 
-    const matched = lines.filter((line) => lineQualifies(rule, line));
+    const matched = qualifyingLines(rule, lines);
 
     if (rule.type === "no_discount") {
       for (const line of matched) {

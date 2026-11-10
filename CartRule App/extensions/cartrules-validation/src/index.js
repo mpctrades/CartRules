@@ -66,27 +66,56 @@ function trueTags(list) {
   return (list || []).filter((t) => t.hasTag).map((t) => String(t.tag).toLowerCase());
 }
 
+/**
+ * A cart line in the engine's shape. Only the IDs and quantity are read up
+ * front; everything else is read from the Function input the first time a
+ * rule asks for it. Reading input fields is what costs most instructions on
+ * big carts, and most rules never look at title, vendor, tags or prices.
+ */
+class EngineLine {
+  constructor(line, merchandise) {
+    this._line = line;
+    this._product = merchandise.product;
+    this.productId = merchandise.product.id;
+    this.variantId = merchandise.id;
+    this.quantity = line.quantity;
+  }
+  get title() {
+    return this._product.title;
+  }
+  get vendor() {
+    return this._product.vendor;
+  }
+  get productType() {
+    return this._product.productType;
+  }
+  get tags() {
+    if (this._tags === undefined) this._tags = trueTags(this._product.hasTags);
+    return this._tags;
+  }
+  get collections() {
+    if (this._collections === undefined) {
+      this._collections = (this._product.inCollections || []).filter((c) => c.isMember).map((c) => c.collectionId);
+    }
+    return this._collections;
+  }
+  get subtotal() {
+    return Number(this._line.cost?.subtotalAmount?.amount) || 0;
+  }
+  get hasDiscount() {
+    // Any discount allocation counts — the input can't reliably tell a
+    // code from an automatic discount (see the Block discount rule's help text).
+    return (this._line.discountAllocations?.length ?? 0) > 0;
+  }
+}
+
 export function toEngineCart(input) {
   const cart = input?.cart || {};
   const lines = [];
   for (const line of cart.lines || []) {
     const merchandise = line.merchandise;
     if (!merchandise || merchandise.__typename !== "ProductVariant" || !merchandise.product) continue;
-    const product = merchandise.product;
-    lines.push({
-      productId: product.id,
-      variantId: merchandise.id,
-      title: product.title,
-      vendor: product.vendor,
-      productType: product.productType,
-      tags: trueTags(product.hasTags),
-      collections: (product.inCollections || []).filter((c) => c.isMember).map((c) => c.collectionId),
-      quantity: line.quantity,
-      subtotal: Number(line.cost?.subtotalAmount?.amount) || 0,
-      // Any discount allocation counts — the input can't reliably tell a
-      // code from an automatic discount (see the Block discount rule's help text).
-      hasDiscount: (line.discountAllocations?.length ?? 0) > 0,
-    });
+    lines.push(new EngineLine(line, merchandise));
   }
   const buyer = cart.buyerIdentity;
   const subtotal = Number(cart.cost?.subtotalAmount?.amount);
