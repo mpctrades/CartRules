@@ -31,7 +31,14 @@ export function cartValidationsGenerateRun(input) {
   const rules = (Array.isArray(cache.rules) ? cache.rules : []).map(fromLegacy);
   if (rules.length === 0) return { operations: [] };
 
-  const { violations } = evaluateCart(toEngineCart(input), rules, { conflictMode: cache.conflictMode });
+  const result = evaluateCart(toEngineCart(input), rules, { conflictMode: cache.conflictMode });
+  // Group limits never stop items going INTO the cart — the shopper keeps
+  // everything they added and only payment is blocked (Update 1 brief: "3+
+  // hoodies -> checkout blocked ... without removing anything from the
+  // cart"). The cart guard block explains why on the cart page. Other rule
+  // types keep blocking at add-to-cart as before.
+  const atCart = input?.buyerJourney?.step === "CART_INTERACTION";
+  const violations = atCart ? result.violations.filter((v) => v.type !== "group_limit") : result.violations;
   if (violations.length === 0) return { operations: [] };
 
   // Settings → Storefront → "Checkout messages" off: block with one neutral

@@ -9,6 +9,9 @@
 # themselves stay in the shop's `cartrules.rules_cache` metafield, which the
 # theme blocks read too.
 query Input($productTags: [String!], $collectionIds: [ID!], $customerTags: [String!]) {
+  buyerJourney {
+    step
+  }
   cart {
     lines {
       quantity
