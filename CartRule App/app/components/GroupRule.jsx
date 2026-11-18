@@ -139,12 +139,7 @@ export function GroupEditor({ value, onChange, options, plan }) {
   return (
     <BlockStack gap="400">
       <BlockStack gap="200">
-        <InlineStack gap="200" blockAlign="center">
-          <Text as="span" variant="bodyMd" fontWeight="medium">
-            Product tags
-          </Text>
-          {tagLocked ? <Locked plan={TARGET_INFO.tag.plan} /> : null}
-        </InlineStack>
+        {tagLocked ? <Locked plan={TARGET_INFO.tag.plan} /> : null}
         <TokenField
           label="Product tags"
           values={tags}
