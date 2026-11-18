@@ -31,9 +31,14 @@
 //   target: { type, values: [] }, targetLabel,
 //   comboTarget: { type, values: [] },          // product_combination only
 //   customer: { type, tags: [] },
+//   exempt: ["cartrules-exempt", ...],          // customer tags that skip the rule
 //   countries: ["US", ...] | null,
 //   conditions: [{ field, op, value }],
 // }
+//
+// Target type "mixed" (group_limit rules) mixes products, collections and
+// tags in one list: values are "product:<id>", "collection:<gid>",
+// "tag:<tag>". A line matching several of them is still one line.
 
 const QUANTITY_TYPES = ["max_quantity", "min_quantity", "quantity_multiple"];
 
@@ -90,6 +95,41 @@ function idsOf(line) {
   return ids;
 }
 
+const mixedParts = new WeakMap();
+
+/** { product: Set<numeric id>, collection: Set<gid>, tag: Set<lowercase> } of a mixed target. */
+function mixedSets(values) {
+  if (!values || typeof values !== "object") return { product: new Set(), collection: new Set(), tag: new Set() };
+  let parts = mixedParts.get(values);
+  if (!parts) {
+    parts = { product: new Set(), collection: new Set(), tag: new Set() };
+    for (const raw of values) {
+      const v = String(raw == null ? "" : raw);
+      const i = v.indexOf(":");
+      if (i === -1) continue;
+      const kind = v.slice(0, i);
+      const rest = v.slice(i + 1);
+      if (kind === "product") parts.product.add(numericId(rest));
+      else if (kind === "collection") parts.collection.add(rest);
+      else if (kind === "tag") parts.tag.add(lower(rest));
+    }
+    mixedParts.set(values, parts);
+  }
+  return parts;
+}
+
+function lineMatchesMixed(line, values) {
+  const parts = mixedSets(values);
+  if (parts.product.size && parts.product.has(idsOf(line).product)) return true;
+  if (parts.collection.size) {
+    for (const c of line.collections || []) if (parts.collection.has(c)) return true;
+  }
+  if (parts.tag.size) {
+    for (const t of line.tags || []) if (parts.tag.has(lower(t))) return true;
+  }
+  return false;
+}
+
 function includesLower(list, value) {
   return lowerSet(list).has(lower(value));
 }
@@ -125,6 +165,8 @@ export function lineMatchesTarget(line, target) {
       return includesLower(values, line.vendor);
     case "product_type":
       return includesLower(values, line.productType);
+    case "mixed":
+      return lineMatchesMixed(line, values);
     default:
       return false;
   }
@@ -163,6 +205,9 @@ function cartConditionsPass(cart, conditions) {
 /** Customer, market and cart-level conditions — does the rule apply to this cart at all? */
 export function cartQualifies(rule, cart) {
   const customer = cart.customer || {};
+  // Exceptions: customers carrying one of these tags skip the rule entirely
+  // (e.g. "cartrules-exempt" on a customer whose quote was agreed).
+  if (Array.isArray(rule.exempt) && rule.exempt.length > 0 && anyShared(customer.tags, rule.exempt)) return false;
   const cond = rule.customer || { type: "everyone" };
   switch (cond.type) {
     case "logged_in":
@@ -247,6 +292,7 @@ export const FALLBACK_MESSAGES = {
   cart_min_value: "Your cart must be at least {{limit}} to check out.",
   cart_max_value: "Your cart can't be more than {{limit}}.",
   quantity_multiple: "{{product}} is sold in multiples of {{limit}}.",
+  group_limit: "You can buy at most {{limit}} items from {{collection}} per order.",
   max_cart_items: "Your cart can contain at most {{limit}} items.",
   product_combination: "{{product}} can't be purchased together with the other items in your cart.",
 };
@@ -397,6 +443,34 @@ export function evaluateCart(cart, rules, options) {
       continue;
     }
 
+    if (rule.type === "group_limit") {
+      // Every matching line counts toward ONE total — any product, any
+      // variant. qualifyingLines yields each cart line once, so a product
+      // that is both tagged and in a selected collection counts once.
+      const limit = Number(rule.value);
+      if (!(limit >= 1) || matched.length === 0) continue;
+      let total = 0;
+      for (const l of matched) total += Number(l.quantity) || 0;
+      matches.push({ ruleId: rule.id, type: rule.type, productId: null, attempted: total });
+      if (total <= limit) continue;
+      violations.push({
+        ruleId: rule.id,
+        type: rule.type,
+        productId: matched[0].productId,
+        productTitle: matched[0].title,
+        attempted: total,
+        allowed: limit,
+        message: renderMessage(rule.msg, {
+          type: rule.type,
+          limit,
+          quantity: total,
+          product: rule.targetLabel,
+          collection: rule.targetLabel,
+        }),
+      });
+      continue;
+    }
+
     if (rule.type === "product_combination") {
       const groupB = lines.filter((line) => lineMatchesTarget(line, rule.comboTarget));
       if (matched.length === 0 || groupB.length === 0) continue;
@@ -454,6 +528,13 @@ export function collectInputVariables(rules) {
     if (!target) return;
     if (target.type === "tag") for (const v of target.values || []) productTags.add(String(v));
     if (target.type === "collection") for (const v of target.values || []) collectionIds.add(String(v));
+    if (target.type === "mixed") {
+      for (const raw of target.values || []) {
+        const v = String(raw);
+        if (v.startsWith("tag:")) productTags.add(v.slice(4));
+        else if (v.startsWith("collection:")) collectionIds.add(v.slice(11));
+      }
+    }
   };
   for (const rule of rules || []) {
     addTarget(rule.target);
@@ -465,6 +546,7 @@ export function collectInputVariables(rules) {
     if (rule.customer && (rule.customer.type === "tags" || rule.customer.type === "exclude_tags")) {
       for (const t of rule.customer.tags || []) customerTags.add(String(t));
     }
+    for (const t of rule.exempt || []) customerTags.add(String(t));
   }
   return {
     productTags: [...productTags],

@@ -90,7 +90,7 @@
         </select>
         <span class="toc-label">On this page</span>
         <a href="#quick-start">1. Quick start</a>
-        <a href="#rule-types">2. The two rule types</a>
+        <a href="#rule-types">2. Core rule types</a>
         <a href="#create-a-rule">3. Creating a rule</a>
         <a href="#dashboard">4. Your rules dashboard</a>
         <a href="#customer-view">5. What customers see</a>
@@ -126,8 +126,8 @@
         <!-- 2 RULE TYPES -->
         <section class="g-section" id="rule-types">
           <div class="g-num">02</div>
-          <h2>The two rule types</h2>
-          <p class="lede">CartRules version 1 has exactly two rule types. Knowing which one to reach for is most of the
+          <h2>Core rule types</h2>
+          <p class="lede">Most stores start with one of these three. Knowing which one to reach for is most of the
             job.</p>
           <div class="g-body">
             <div class="g-block">
@@ -175,6 +175,36 @@
                     <path d="M12 8v5M12 16h.01" />
                   </svg>
                   <span>Maximum 2 per order for this item (oversized parcel). Quantity was adjusted.</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="g-block" id="group-limit">
+              <div class="g-text">
+                <h3><span class="step-n">C</span>"Group limit" <span class="mono">NEW</span></h3>
+                <p>One maximum for several products <em>added together</em>. "Max quantity" counts each product on its
+                  own — "max 2" on everything tagged <span class="mono">hoodie</span> means 2 of <em>each</em> hoodie, so
+                  five hoodie models still allow ten. A group limit of 2 means 2 hoodies in total, any model, size or
+                  color.</p>
+                <ul class="checklist">
+                  <li>Build the group from tags, collections and products — mix them freely</li>
+                  <li>A product matched twice (tagged <em>and</em> in a selected collection) counts once</li>
+                  <li>Products you didn't select never count</li>
+                  <li>Blocks payment at checkout — including Shop Pay, Apple Pay, Google Pay, PayPal and "Buy it now" —
+                    and never removes anything from the cart</li>
+                  <li>Optional exception tag (default <span class="mono">cartrules-exempt</span>) lets a customer
+                    through, e.g. after you agreed on a quote</li>
+                </ul>
+              </div>
+              <div class="g-visual">
+                <div class="notice" style="margin-top:0;">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="M12 8v5M12 16h.01" />
+                  </svg>
+                  <span>For orders of three or more hoodies, please email us for a shipping quote before placing your
+                    order.</span>
                 </div>
               </div>
             </div>
@@ -391,7 +421,7 @@
         <section class="g-section" id="recipes">
           <div class="g-num">06</div>
           <h2>Common recipes</h2>
-          <p class="lede">Three real setups, straight from the problems CartRules was built to solve. Copy the pattern
+          <p class="lede">Real setups, straight from the problems CartRules was built to solve. Copy the pattern
             for your own catalog.</p>
           <div class="g-body">
             <div class="recipe-grid">
@@ -419,6 +449,38 @@
                 <div class="setup">Rule: Max quantity per order<br>Target: Product = Album Special Ed.<br>Message:
                   "Limited edition — 1 per order."</div>
               </div>
+              <div class="recipe-card">
+                <span class="tag">Group limit</span>
+                <h4>Max 2 hoodies per order, in total</h4>
+                <p>Hoodies are bulky: a third one pushes the parcel into a pricier shipping band. Cap all hoodies
+                  together so 2 hoodies + a T-shirt checks out, but 3 hoodies of any style need a shipping quote first.</p>
+                <div class="setup">Rule: Group limit<br>Group: Tag = hoodie<br>Maximum for the whole group: 2<br>Exceptions:
+                  cartrules-exempt<br>Message: "For 3 or more hoodies, email us for a shipping quote before ordering."</div>
+              </div>
+            </div>
+
+            <div class="g-text" id="quote-flow" style="max-width:720px; margin-top:32px;">
+              <h3>Tutorial: the hoodie limit, with a shipping quote for bigger orders</h3>
+              <ol>
+                <li><strong>Tag your hoodies.</strong> In Shopify, give every hoodie the tag <span class="mono">hoodie</span>
+                  (Products → select → Add tags). New hoodies you tag later are covered automatically.</li>
+                <li><strong>Create the rule.</strong> CartRules → Rules → Create rule → <em>Group limit</em>. In
+                  <em>Which products count toward the group?</em> add the tag <span class="mono">hoodie</span> — the form
+                  shows how many products and variants that covers. Set <em>Maximum units for the whole group per
+                  order</em> to <strong>2</strong>.</li>
+                <li><strong>Write the message.</strong> Plain text — links aren't clickable at checkout, so write the
+                  email address out. Keep it short; most shoppers read it on a phone.</li>
+                <li><strong>Test it before you activate.</strong> In <em>Test this rule</em>, add 2 of one hoodie and 1
+                  of another: it shows <em>Blocked — 3 units in cart, max 2</em> and the message your customer will
+                  see. Lower to 2 hoodies + 1 T-shirt and it shows <em>OK</em>.</li>
+                <li><strong>Save &amp; activate.</strong> From now on, carts with 3 or more hoodies can't be paid —
+                  in normal and express checkout — and nothing is removed from the cart.</li>
+                <li><strong>When a customer asks for a quote:</strong> reply with the shipping price, then create a
+                  draft order (Orders → Drafts) with their hoodies and that shipping, and send the invoice. If your draft
+                  order screen offers an option to ignore checkout rules, turn it on. Otherwise add the tag
+                  <span class="mono">cartrules-exempt</span> to that customer (Customers → the customer → Tags) so the
+                  rule skips them and the invoice can be paid.</li>
+              </ol>
             </div>
           </div>
         </section>
@@ -506,6 +568,9 @@
               <ul class="checklist">
                 <li><strong>Free</strong> — every feature (both rule types, product/collection/tag targeting,
                   custom messages, product-page and cart notices) with up to 3 active rules.</li>
+                <li><strong>Group limit</strong> — Free includes 1 group limit rule with the default message (it
+                  counts toward the 3 active rules). Growth and Pro include unlimited group limit rules with your own
+                  message.</li>
                 <li><strong>Growth ($4.99/mo)</strong> — everything in Free, unlimited active rules, email
                   support.</li>
                 <li><strong>Pro ($9.99/mo)</strong> — everything in Growth, plus priority support.</li>

@@ -24,6 +24,7 @@ import {
   CONDITION_FIELDS,
   CONFLICT_MODES,
   RULE_TYPE_INFO,
+  parseGroupValue,
 } from "./ruleConstants";
 import { isLive } from "./ruleDisplay";
 import { getSettings, getDefaultMessages } from "./settings.server";
@@ -326,6 +327,7 @@ function ruleFromMetaobject(node) {
     customer: config.customer ?? { type: CUSTOMER_TYPES.EVERYONE, tags: [] },
     market: config.market ?? { type: MARKET_TYPES.ALL, countries: [], marketIds: [], labels: [] },
     conditions: Array.isArray(config.conditions) ? config.conditions : [],
+    exempt: Array.isArray(config.exempt) ? config.exempt : [],
     schedule: config.schedule ?? { startsAt: null, endsAt: null },
     priority: Number.isFinite(Number(config.priority)) ? Number(config.priority) : 0,
     templateId: config.templateId ?? null,
@@ -420,6 +422,22 @@ const cleanList = (list) =>
 function cleanTarget(target, { allowAll = true } = {}) {
   const type = Object.values(TARGET_TYPES).includes(target?.type) ? target.type : TARGET_TYPES.ALL;
   if (type === TARGET_TYPES.ALL) return allowAll ? { type, values: [], labels: [] } : null;
+  if (type === TARGET_TYPES.MIXED) {
+    // Keep only well-formed "kind:value" entries, labels aligned with them.
+    const values = [];
+    const labels = [];
+    const seen = new Set();
+    (Array.isArray(target.values) ? target.values : []).forEach((raw, i) => {
+      const p = parseGroupValue(String(raw).trim());
+      if (!p) return;
+      const key = `${p.kind}:${p.kind === "tag" ? p.value.trim().toLowerCase() : p.value.trim()}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      values.push(`${p.kind}:${p.value.trim()}`);
+      labels.push(String(target.labels?.[i] ?? p.value).slice(0, 200));
+    });
+    return { type, values, labels };
+  }
   const values = cleanList(target.values);
   const labels = Array.isArray(target.labels) ? target.labels.map(String).slice(0, values.length) : [];
   return { type, values, labels };
@@ -435,6 +453,13 @@ export function normalizeRuleInput(input) {
   if (!info) throw new Error("Choose a rule type.");
 
   const target = cleanTarget(input.target);
+  if (ruleType === RULE_TYPES.GROUP_LIMIT) {
+    if (target.type !== TARGET_TYPES.MIXED || target.values.length === 0) {
+      throw new Error("Choose the tags, collections or products that count toward the group.");
+    }
+  } else if (target.type === TARGET_TYPES.MIXED) {
+    throw new Error("Only Group limit rules can target a group of products.");
+  }
   if (target.type !== TARGET_TYPES.ALL && target.values.length === 0) {
     throw new Error("Choose at least one product, collection, tag, vendor or type this rule applies to.");
   }
@@ -484,6 +509,9 @@ export function normalizeRuleInput(input) {
     }
   }
 
+  // Exceptions: customers with one of these tags skip the rule.
+  const exempt = cleanList(input.exempt).slice(0, 20);
+
   const startsAt = input.schedule?.startsAt ? new Date(input.schedule.startsAt).toISOString() : null;
   const endsAt = input.schedule?.endsAt ? new Date(input.schedule.endsAt).toISOString() : null;
   if (startsAt && endsAt && Date.parse(endsAt) <= Date.parse(startsAt)) {
@@ -505,6 +533,7 @@ export function normalizeRuleInput(input) {
     customer,
     market,
     conditions,
+    exempt,
     schedule: { startsAt, endsAt },
     priority: Math.max(0, Math.min(100, Math.round(Number(input.priority) || 0))),
     templateId: input.templateId ? String(input.templateId) : null,
@@ -532,6 +561,7 @@ function ruleToFields(rule, { legacy = false } = {}) {
         customer: rule.customer,
         market: rule.market,
         conditions: rule.conditions,
+        exempt: rule.exempt ?? [],
         schedule: rule.schedule,
         priority: rule.priority,
         templateId: rule.templateId,
@@ -669,6 +699,12 @@ const numericId = (gid) => String(gid).split("/").pop();
 
 function compactTarget(target) {
   if (!target || target.type === TARGET_TYPES.ALL) return { type: TARGET_TYPES.ALL, values: [] };
+  if (target.type === TARGET_TYPES.MIXED) {
+    return {
+      type: target.type,
+      values: target.values.map((v) => (v.startsWith("product:") ? `product:${numericId(v.slice(8))}` : v)),
+    };
+  }
   // Product/variant GIDs are stored as plain ids — they're the bulk of the cache.
   const values =
     target.type === TARGET_TYPES.PRODUCT || target.type === TARGET_TYPES.VARIANT
@@ -698,6 +734,7 @@ export function buildRulesCache(rules, settings, now = Date.now()) {
     if (r.customer && r.customer.type !== CUSTOMER_TYPES.EVERYONE) entry.customer = r.customer;
     if (r.market?.type !== MARKET_TYPES.ALL && r.market?.countries?.length) entry.countries = r.market.countries;
     if (r.conditions?.length) entry.conditions = r.conditions;
+    if (r.exempt?.length) entry.exempt = r.exempt;
     if (r.priority) entry.priority = r.priority;
     return entry;
   });

@@ -5,6 +5,7 @@
 // "Server-only module referenced by client" build error this file fixes).
 export const RULE_TYPES = {
   MAX_QUANTITY: "max_quantity",
+  GROUP_LIMIT: "group_limit",
   MIN_QUANTITY: "min_quantity",
   NO_DISCOUNT: "no_discount",
   CART_MIN_VALUE: "cart_min_value",
@@ -23,6 +24,16 @@ export const RULE_TYPE_INFO = {
     short: "Max quantity",
     description: "Limit how many units customers can buy.",
     valueLabel: "Maximum units per order",
+    category: "quantity",
+    plan: "Free",
+  },
+  // One maximum for the COMBINED quantity of several products (e.g. max 2
+  // hoodies in total, any model, size or color). Targets a "mixed" group.
+  [RULE_TYPES.GROUP_LIMIT]: {
+    title: "Group limit",
+    short: "Group limit",
+    description: "Limit the combined total of several products.",
+    valueLabel: "Maximum units for the whole group per order",
     category: "quantity",
     plan: "Free",
   },
@@ -96,7 +107,43 @@ export const TARGET_TYPES = {
   TAG: "tag",
   VENDOR: "vendor",
   PRODUCT_TYPE: "product_type",
+  // Group limit only: products, collections and tags mixed in one list,
+  // stored as "product:<gid>", "collection:<gid>", "tag:<tag>".
+  MIXED: "mixed",
 };
+
+// The parts a group can mix, in the order the form shows them.
+export const GROUP_PARTS = ["tag", "collection", "product"];
+
+/** "tag:hoodie" -> { kind: "tag", value: "hoodie" }; null for anything else. */
+export function parseGroupValue(raw) {
+  const s = String(raw ?? "");
+  const i = s.indexOf(":");
+  if (i === -1) return null;
+  const kind = s.slice(0, i);
+  const value = s.slice(i + 1);
+  return GROUP_PARTS.includes(kind) && value ? { kind, value } : null;
+}
+
+/**
+ * A target as plain single-type targets: a mixed group becomes up to three
+ * (tag / collection / product), anything else is returned as is. Lets
+ * health checks, product counts and plan checks treat a group like the
+ * targets they already understand.
+ */
+export function splitTarget(target) {
+  if (!target) return [];
+  if (target.type !== TARGET_TYPES.MIXED) return [target];
+  const parts = {};
+  (target.values ?? []).forEach((raw, i) => {
+    const p = parseGroupValue(raw);
+    if (!p) return;
+    const part = (parts[p.kind] ??= { type: p.kind, values: [], labels: [] });
+    part.values.push(p.value);
+    part.labels.push(target.labels?.[i] ?? p.value);
+  });
+  return GROUP_PARTS.filter((k) => parts[k]).map((k) => parts[k]);
+}
 
 export const TARGET_INFO = {
   [TARGET_TYPES.ALL]: { label: "All products", plan: "Free" },
@@ -106,7 +153,13 @@ export const TARGET_INFO = {
   [TARGET_TYPES.TAG]: { label: "Product tags", noun: "Tags", plan: "Growth" },
   [TARGET_TYPES.VENDOR]: { label: "Product vendor", noun: "Vendors", plan: "Growth" },
   [TARGET_TYPES.PRODUCT_TYPE]: { label: "Product type", noun: "Product types", plan: "Growth" },
+  // Plan per part (tag/collection need Growth) — see lockedFeaturesClient.
+  [TARGET_TYPES.MIXED]: { label: "Group of products", noun: "Group", plan: "Free", groupOnly: true },
 };
+
+// Customer tag a new group rule skips by default (Exceptions card).
+export const DEFAULT_EXEMPT_TAG = "cartrules-exempt";
+
 
 export const CUSTOMER_TYPES = {
   EVERYONE: "everyone",

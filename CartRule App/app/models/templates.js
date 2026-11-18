@@ -71,6 +71,20 @@ export const TEMPLATES = [
     },
   },
   {
+    id: "bulky-group",
+    title: "Bulky group cap",
+    summary: "Maximum 2 in total",
+    description: "Cap several bulky products together — e.g. max 2 hoodies per order, any model, size or color.",
+    categories: ["quantity"],
+    rule: {
+      title: "Bulky group – max 2 in total",
+      ruleType: RULE_TYPES.GROUP_LIMIT,
+      value: 2,
+      target: { type: TARGET_TYPES.MIXED, values: ["tag:bulky"], labels: ["bulky"] },
+      exempt: ["cartrules-exempt"],
+    },
+  },
+  {
     id: "reseller-protection",
     title: "Reseller protection",
     summary: "Maximum 3 per order",
@@ -140,6 +154,7 @@ export function templateRuleForPlan(template, plan) {
   const rule = template.rule;
   const locked = lockedFeaturesClient(rule, plan);
   if (locked.length && locked.every((f) => f.key === "target:tag" || f.key === "target:collection")) {
+    if (rule.target?.type === TARGET_TYPES.MIXED) return { ...rule, target: { type: TARGET_TYPES.MIXED, values: [], labels: [] } };
     return { ...rule, target: { type: TARGET_TYPES.PRODUCT, values: [], labels: [] } };
   }
   return rule;

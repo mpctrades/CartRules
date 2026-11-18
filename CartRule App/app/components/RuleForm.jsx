@@ -11,11 +11,9 @@ import {
   BlockStack,
   Button,
   ChoiceList,
-  Combobox,
   Icon,
   InlineGrid,
   InlineStack,
-  Listbox,
   Select,
   Tag,
   Text,
@@ -35,6 +33,7 @@ import {
   CONDITION_OPS,
   MESSAGE_VARIABLES,
   RULE_STATUS,
+  DEFAULT_EXEMPT_TAG,
   planAllows,
 } from "../models/ruleConstants";
 import { describeRule, describeTarget, describeCustomer, formatMoney, formatDateTime } from "../models/ruleDisplay";
@@ -43,6 +42,10 @@ import { zonedToUtcIso, utcIsoToZoned } from "../utils/time";
 import { renderMessage } from "../models/ruleEngine.generated.js";
 import { Box } from "./ui";
 import { COUNTRY_CODES, countryName } from "./countries";
+import { TokenField } from "./TokenField";
+import { GroupEditor, RuleTester } from "./GroupRule";
+
+const EMPTY_GROUP = { type: TARGET_TYPES.MIXED, values: [], labels: [] };
 
 const STEPS = ["Rule type", "Applies to", "Conditions", "Customer message", "Review"];
 
@@ -69,6 +72,8 @@ export function ruleToForm(rule, timezone) {
     customer: rule?.customer ?? { type: CUSTOMER_TYPES.EVERYONE, tags: [] },
     market: rule?.market ?? { type: MARKET_TYPES.ALL, countries: [], marketIds: [], labels: [] },
     conditions: rule?.conditions ?? [],
+    // New group rules skip "cartrules-exempt" customers by default (quote flow).
+    exempt: rule?.exempt ?? (rule?.ruleType === RULE_TYPES.GROUP_LIMIT && !rule?.id ? [DEFAULT_EXEMPT_TAG] : []),
     scheduleMode: hasSchedule ? "scheduled" : "forever",
     startDate: start.date,
     startTime: start.time || "00:00",
@@ -93,6 +98,7 @@ function formToRule(form, timezone, status) {
     customer: form.customer,
     market: form.market,
     conditions: form.conditions,
+    exempt: form.exempt,
     schedule: {
       startsAt: scheduled && form.startDate ? zonedToUtcIso(form.startDate, form.startTime, timezone) : null,
       endsAt: scheduled && form.endDate ? zonedToUtcIso(form.endDate, form.endTime, timezone) : null,
@@ -105,75 +111,19 @@ function formToRule(form, timezone, status) {
 function suggestTitle(form) {
   const info = RULE_TYPE_INFO[form.ruleType];
   const target = form.target.type === TARGET_TYPES.ALL ? "All products" : (form.target.labels?.[0] ?? form.target.values?.[0] ?? "");
+  if (form.ruleType === RULE_TYPES.GROUP_LIMIT) {
+    return `${target ? `${target} – ` : ""}max ${form.value || "N"} in total`;
+  }
   const value = info?.valueLabel && form.value ? ` ${info.money ? form.value : form.value}` : "";
   return `${target ? `${target} – ` : ""}${info?.short ?? ""}${value}`.trim();
 }
 
 // ---------------------------------------------------------------------------
 
-/** Multi-value input with suggestions (tags, vendors, types, countries). */
-function TokenField({ label, values, onChange, suggestions = [], placeholder, disabled, format = (v) => v, helpText }) {
-  const [input, setInput] = useState("");
-  const lowerValues = values.map((v) => String(v).toLowerCase());
-  const matches = suggestions
-    .filter((s) => !lowerValues.includes(String(s).toLowerCase()))
-    .filter((s) => !input || format(s).toLowerCase().includes(input.toLowerCase()) || String(s).toLowerCase().includes(input.toLowerCase()))
-    .slice(0, 12);
-  const add = (raw) => {
-    const v = String(raw ?? "").trim();
-    if (!v || lowerValues.includes(v.toLowerCase())) {
-      setInput("");
-      return;
-    }
-    onChange([...values, v]);
-    setInput("");
-  };
-  const exact = suggestions.some((s) => String(s).toLowerCase() === input.trim().toLowerCase());
-  return (
-    <BlockStack gap="200">
-      <Combobox
-        activator={
-          <Combobox.TextField
-            label={label}
-            value={input}
-            onChange={setInput}
-            placeholder={placeholder}
-            autoComplete="off"
-            disabled={disabled}
-            helpText={helpText}
-          />
-        }
-      >
-        {matches.length > 0 || (input.trim() && !exact) ? (
-          <Listbox onSelect={add}>
-            {input.trim() && !exact ? (
-              <Listbox.Option value={input.trim()}>{`Add “${input.trim()}”`}</Listbox.Option>
-            ) : null}
-            {matches.map((s) => (
-              <Listbox.Option key={s} value={s}>
-                {format(s)}
-              </Listbox.Option>
-            ))}
-          </Listbox>
-        ) : null}
-      </Combobox>
-      {values.length ? (
-        <InlineStack gap="150" wrap>
-          {values.map((v) => (
-            <Tag key={v} onRemove={disabled ? undefined : () => onChange(values.filter((x) => x !== v))}>
-              {format(v)}
-            </Tag>
-          ))}
-        </InlineStack>
-      ) : null}
-    </BlockStack>
-  );
-}
-
 /** Target editor: type + the matching picker/input. */
 function TargetEditor({ label, value, onChange, options, plan, allowAll = true }) {
   const typeOptions = Object.entries(TARGET_INFO)
-    .filter(([type]) => allowAll || type !== TARGET_TYPES.ALL)
+    .filter(([type]) => (allowAll || type !== TARGET_TYPES.ALL) && type !== TARGET_TYPES.MIXED)
     .map(([type, info]) => ({
       value: type,
       label: planAllows(plan, info.plan) ? info.label : `${info.label} (${info.plan} plan)`,
@@ -352,7 +302,9 @@ export default function RuleForm({ initial, mode, plan, timezone, currency, opti
       : null;
   const stepErrors = {
     2:
-      form.target.type !== TARGET_TYPES.ALL && form.target.values.length === 0
+      form.ruleType === RULE_TYPES.GROUP_LIMIT && (form.target.type !== TARGET_TYPES.MIXED || form.target.values.length === 0)
+        ? "Choose the tags, collections or products that count toward the group."
+        : form.target.type !== TARGET_TYPES.ALL && form.target.values.length === 0
         ? "Choose what this rule applies to."
         : form.ruleType === RULE_TYPES.PRODUCT_COMBINATION && form.comboTarget.values.length === 0
           ? "Choose the products that can't be bought together with the first group."
@@ -392,7 +344,11 @@ export default function RuleForm({ initial, mode, plan, timezone, currency, opti
   const serverError = fetcher.data?.ok === false ? fetcher.data.error : null;
 
   const sampleProduct =
-    form.target.type !== TARGET_TYPES.ALL && form.target.labels?.[0] ? form.target.labels[0] : "your product";
+    form.target.type !== TARGET_TYPES.ALL && form.target.labels?.[0]
+      ? form.ruleType === RULE_TYPES.GROUP_LIMIT
+        ? form.target.labels.join(", ")
+        : form.target.labels[0]
+      : "your product";
   const defaultMessage = defaultMessages?.[form.ruleType] ?? "";
   const preview = renderMessage(form.message || defaultMessage, {
     type: form.ruleType,
@@ -431,6 +387,17 @@ export default function RuleForm({ initial, mode, plan, timezone, currency, opti
               onClick={() => {
                 const patch = { ruleType: type };
                 if (RULE_TYPE_INFO[type].money !== info?.money || !RULE_TYPE_INFO[type].valueLabel) patch.value = "";
+                // A group targets a mixed list; other types can't use one.
+                if (type === RULE_TYPES.GROUP_LIMIT && form.target.type !== TARGET_TYPES.MIXED) {
+                  // Carry over tags / collections / products already chosen.
+                  const kind = { tag: "tag", collection: "collection", product: "product" }[form.target.type];
+                  patch.target = kind
+                    ? { type: TARGET_TYPES.MIXED, values: form.target.values.map((v) => `${kind}:${v}`), labels: [...(form.target.labels ?? [])] }
+                    : EMPTY_GROUP;
+                  if (mode === "new" && form.exempt.length === 0) patch.exempt = [DEFAULT_EXEMPT_TAG];
+                } else if (type !== RULE_TYPES.GROUP_LIMIT && form.target.type === TARGET_TYPES.MIXED) {
+                  patch.target = { type: TARGET_TYPES.ALL, values: [], labels: [] };
+                }
                 set(patch);
               }}
             >
@@ -478,15 +445,26 @@ export default function RuleForm({ initial, mode, plan, timezone, currency, opti
 
   const stepTarget = (
     <Box
-      title={form.ruleType === RULE_TYPES.PRODUCT_COMBINATION ? "Which products can't be bought together?" : "Which products does it apply to?"}
+      title={
+        form.ruleType === RULE_TYPES.PRODUCT_COMBINATION
+          ? "Which products can't be bought together?"
+          : form.ruleType === RULE_TYPES.GROUP_LIMIT
+            ? "Which products count toward the group?"
+            : "Which products does it apply to?"
+      }
       subtitle={
-        [RULE_TYPES.CART_MIN_VALUE, RULE_TYPES.CART_MAX_VALUE].includes(form.ruleType)
+        form.ruleType === RULE_TYPES.GROUP_LIMIT
+          ? "Mix tags, collections and products. Their quantities are added together into one total."
+          : [RULE_TYPES.CART_MIN_VALUE, RULE_TYPES.CART_MAX_VALUE].includes(form.ruleType)
           ? "All products checks the whole cart total. Otherwise only these products count toward the amount."
           : form.ruleType === RULE_TYPES.MAX_CART_ITEMS
             ? "Only items from these products count toward the limit."
             : "Tags, collections, vendors and types are checked live at checkout — new matching products are covered automatically."
       }
     >
+      {form.ruleType === RULE_TYPES.GROUP_LIMIT ? (
+        <GroupEditor value={form.target.type === TARGET_TYPES.MIXED ? form.target : EMPTY_GROUP} onChange={(target) => set({ target })} options={options} plan={plan} />
+      ) : (
       <BlockStack gap="500">
         <TargetEditor
           label={form.ruleType === RULE_TYPES.PRODUCT_COMBINATION ? "First group" : "Applies to"}
@@ -507,6 +485,7 @@ export default function RuleForm({ initial, mode, plan, timezone, currency, opti
           />
         ) : null}
       </BlockStack>
+      )}
     </Box>
   );
 
@@ -535,8 +514,10 @@ export default function RuleForm({ initial, mode, plan, timezone, currency, opti
                 form.ruleType === RULE_TYPES.QUANTITY_MULTIPLE
                   ? `Customers can buy ${[1, 2, 3].map((n) => (Number(form.value) || 6) * n).join(", ")}…`
                   : form.ruleType === RULE_TYPES.MAX_QUANTITY
-                    ? "Counted per product across all its variants in the cart."
-                    : undefined
+                    ? "Counted per product across all its variants in the cart. To cap several products together, use Group limit."
+                    : form.ruleType === RULE_TYPES.GROUP_LIMIT
+                      ? "All products in the group added together. Example: max 2 hoodies in total, any model, size or color."
+                      : undefined
               }
             />
           </div>
@@ -564,6 +545,20 @@ export default function RuleForm({ initial, mode, plan, timezone, currency, opti
             />
           ) : null}
         </BlockStack>
+      </Box>
+
+      <Box
+        title="Exceptions"
+        subtitle="Skip this rule for customers with one of these tags."
+        actions={form.ruleType === RULE_TYPES.GROUP_LIMIT ? <Badge tone="info">New</Badge> : null}
+      >
+        <TokenField
+          label="Skip this rule for customers tagged"
+          values={form.exempt}
+          onChange={(exempt) => set({ exempt })}
+          placeholder={DEFAULT_EXEMPT_TAG}
+          helpText={`Use it when you agreed on a quote with a customer: add the tag to them in Shopify (Customers → the customer → Tags). Their checkout — or the draft order invoice you send them — then skips this rule. Only works for customers checkout knows (logged in, or on a draft order).`}
+        />
       </Box>
 
       <Box title="Markets" subtitle="Where this rule applies." actions={marketLocked ? <PlanBadge plan="Pro" /> : null}>
@@ -731,7 +726,7 @@ export default function RuleForm({ initial, mode, plan, timezone, currency, opti
           helpText={
             messageLocked
               ? "Free plan uses the default message (in your store's language). Custom messages are included in Growth."
-              : "Leave empty to use the default message. Write it in your customers' language — it's shown as-is."
+              : "Leave empty to use the default message. Write it in your customers' language — it's shown as-is. Plain text — links are not clickable at checkout."
           }
         />
         <InlineStack gap="150" wrap>
@@ -791,6 +786,7 @@ export default function RuleForm({ initial, mode, plan, timezone, currency, opti
             <SummaryRow label="Not together with">{describeTarget(form.comboTarget)}</SummaryRow>
           ) : null}
           <SummaryRow label="Customers">{describeCustomer(form.customer)}</SummaryRow>
+          {form.exempt.length ? <SummaryRow label="Exceptions">{`Skipped for customers tagged ${form.exempt.join(", ")}`}</SummaryRow> : null}
           <SummaryRow label="Markets">
             {form.market.type === MARKET_TYPES.ALL
               ? "All countries"
@@ -819,6 +815,19 @@ export default function RuleForm({ initial, mode, plan, timezone, currency, opti
               </InlineStack>
             </BlockStack>
           </Banner>
+        ) : null}
+        {!firstError ? (
+          <div className="cr-tester">
+            <BlockStack gap="300">
+              <InlineStack align="space-between" blockAlign="center">
+                <Text as="h3" variant="headingSm">
+                  Test this rule
+                </Text>
+                <Badge tone="info">Before you activate</Badge>
+              </InlineStack>
+              <RuleTester rule={rulePreview} exemptTags={form.exempt} />
+            </BlockStack>
+          </div>
         ) : null}
         {firstError ? (
           <Banner tone="warning" title="A few details are missing">

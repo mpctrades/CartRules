@@ -10,7 +10,8 @@ import {
 } from "./rules.server";
 import { getPlan, checkPlanForSave, activeRuleRoom } from "./plan.server";
 import { getDefaultMessages } from "./settings.server";
-import { RULE_STATUS } from "./ruleConstants";
+import { RULE_STATUS, RULE_TYPES } from "./ruleConstants";
+import { FREE_GROUP_RULE_LIMIT } from "./planFeatures";
 import { redirectWithToast } from "../utils/toastRedirect.server";
 
 /** Tags / vendors / types for autocomplete, and Shopify Markets (needs read_markets). */
@@ -80,6 +81,18 @@ export async function saveRuleFromForm({ admin, billing, shop, formData, existin
         error: `${locked.map((f) => f.label).join(", ")} ${locked.length === 1 ? "needs" : "need"} the ${needs} plan. Upgrade in Plan & billing, or remove ${locked.length === 1 ? "it" : "them"} to save on ${plan.name}.`,
         upgrade: true,
       });
+    }
+
+    // Free: one group limit rule (any status — a second one couldn't be activated anyway).
+    if (plan.name === "Free" && rule.ruleType === RULE_TYPES.GROUP_LIMIT && existing?.ruleType !== RULE_TYPES.GROUP_LIMIT) {
+      const groups = rules.filter((r) => r.ruleType === RULE_TYPES.GROUP_LIMIT && r.id !== existing?.id).length;
+      if (groups >= FREE_GROUP_RULE_LIMIT) {
+        return json({
+          ok: false,
+          error: `The Free plan includes ${FREE_GROUP_RULE_LIMIT} group limit rule. Upgrade to Growth for unlimited group rules, or edit your existing one.`,
+          upgrade: true,
+        });
+      }
     }
 
     let capped = false;

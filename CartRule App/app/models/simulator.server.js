@@ -5,6 +5,7 @@
 import { evaluateCart } from "./ruleEngine.generated.js";
 import {
   buildRulesCache,
+  normalizeRuleInput,
   listRules,
   getValidation,
   readRulesCache,
@@ -60,6 +61,50 @@ async function loadLines(admin, items) {
       };
     })
     .filter(Boolean);
+}
+
+/**
+ * The rule form's "Test this rule" box: runs the rule being edited — not
+ * yet saved — against a cart the merchant builds, through the same engine
+ * and the same cache conversion as checkout. Only this rule is evaluated,
+ * and nothing is recorded in Activity (it runs on every edit).
+ *
+ * input: { rule (form payload), items: [{ variantId, quantity }], customerTags: [] }
+ */
+export async function testDraftRule(admin, input) {
+  let rule;
+  try {
+    rule = normalizeRuleInput({ ...input.rule, title: input.rule?.title || "Draft rule" });
+  } catch (error) {
+    return { error: error.message };
+  }
+  const [settings, lines] = await Promise.all([getSettings(admin), loadLines(admin, input.items ?? [])]);
+  if (lines.length === 0) return { error: "Add a product to test with." };
+  const cart = {
+    lines,
+    customer: {
+      loggedIn: (input.customerTags ?? []).length > 0,
+      b2b: false,
+      tags: (input.customerTags ?? []).map((t) => String(t).trim().toLowerCase()).filter(Boolean),
+    },
+    country: null,
+    subtotal: Math.round(lines.reduce((sum, l) => sum + l.subtotal, 0) * 100) / 100,
+    currency: input.currency ?? null,
+    discountCode: null,
+  };
+  const draft = { ...rule, id: "draft", status: RULE_STATUS.ACTIVE, schedule: {} };
+  const built = JSON.parse(buildRulesCache([draft], settings).value);
+  const { violations, matches } = evaluateCart(cart, built.rules, { conflictMode: built.conflictMode });
+  const counted = matches.find((m) => m.attempted != null)?.attempted ?? null;
+  return {
+    blocked: violations.length > 0,
+    applies: matches.length > 0,
+    total: counted,
+    max: rule.value,
+    messages: [...new Set(violations.map((v) => v.message))],
+    violations: violations.map((v) => ({ attempted: v.attempted, allowed: v.allowed, productTitle: v.productTitle })),
+    lines: lines.map((l) => ({ variantId: l.variantId, title: l.title, quantity: l.quantity })),
+  };
 }
 
 /**

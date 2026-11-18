@@ -115,6 +115,7 @@ const PLAN_COPY = [
     features: [
       "3 active rules",
       "Quantity rules (maximum & minimum)",
+      "1 group limit rule (e.g. max 2 hoodies in total), default message",
       "Discount rules (block discounts)",
       "Basic targeting: all products, products, variants",
       "7-day activity history",
@@ -127,6 +128,7 @@ const PLAN_COPY = [
     tagline: "Everything most stores need.",
     features: [
       "Unlimited rules",
+      "Unlimited group limit rules",
       "All standard rule types: cart value, multiples, max cart items, combinations",
       "Collection, tag, vendor & product type targeting",
       "Custom messages",

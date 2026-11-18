@@ -5,8 +5,8 @@
 import { BILLING_PLANS, FREE_PLAN_RULE_LIMIT } from "../shopify.server";
 import { isDevelopmentStore } from "./shop.server";
 import { listRules, setRuleStatus, syncRulesCache } from "./rules.server";
-import { RULE_STATUS } from "./ruleConstants";
-import { lockedFeaturesClient } from "./planFeatures";
+import { RULE_STATUS, RULE_TYPES } from "./ruleConstants";
+import { lockedFeaturesClient, FREE_GROUP_RULE_LIMIT } from "./planFeatures";
 
 /** { name: "Free" | "Growth" | "Pro", subscriptionId, isTest } */
 export async function getPlan(admin, billing, shop) {
@@ -57,6 +57,9 @@ export async function enforcePlanLimits(admin, plan, { capOnly = false } = {}) {
     capOnly ? [] : active.filter((r) => lockedFeatures(r, plan).length > 0).map((r) => r.id),
   );
   if (plan === "Free") {
+    // Free keeps one group limit rule (the most recently updated).
+    const groups = active.filter((r) => r.ruleType === RULE_TYPES.GROUP_LIMIT && !toPause.has(r.id));
+    for (const r of groups.slice(FREE_GROUP_RULE_LIMIT)) toPause.add(r.id);
     const remaining = active.filter((r) => !toPause.has(r.id));
     for (const r of remaining.slice(FREE_PLAN_RULE_LIMIT)) toPause.add(r.id);
   }

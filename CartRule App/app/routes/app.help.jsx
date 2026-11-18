@@ -180,6 +180,22 @@ const FAQ = [
     a: "Yes. Target specific products or variants, collections, product tags, vendors or product types — or all products.",
   },
   {
+    q: "What's the difference between a group limit and a maximum quantity?",
+    a: "Maximum quantity counts each product on its own: “max 2” on everything tagged hoodie means 2 of each hoodie, so 5 hoodie models allow 10. Group limit adds every selected product together: “max 2” means 2 hoodies in total, any model, size or color. Pick the group from tags, collections and products in any mix — a product matched twice still counts once, and products you didn't select never count.",
+  },
+  {
+    q: "Does a group limit work with Shop Pay, Apple Pay, Google Pay and PayPal?",
+    a: "Yes. The limit is checked by Shopify's checkout itself, so express buttons and “Buy it now” are blocked the same way. Nothing is removed from the cart — the shopper sees your message and payment stays locked until they reduce the quantity.",
+  },
+  {
+    q: "A customer needs more than the limit (e.g. a shipping quote). How do they pay?",
+    a: "Create a draft order (Shopify admin → Orders → Drafts) with their items and your shipping price, and send the invoice. If your draft order screen offers an option to ignore checkout rules, turn it on. Otherwise — or for a customer you want to let through every time — add the tag cartrules-exempt to the customer (Customers → the customer → Tags). Rules with that tag under Exceptions are skipped for them. Exceptions only work for customers checkout knows: logged in, or paying a draft order sent to them.",
+  },
+  {
+    q: "Can my message include a link or an email address?",
+    a: "Write any plain text, including an email address — but checkout shows messages as plain text, so links aren't clickable. Keep it short so it reads well on a phone, e.g. “For 3 or more hoodies, email us for a shipping quote before ordering.”",
+  },
+  {
     q: "Can I block discounts for selected products?",
     a: "Yes. Create a Block discounts rule for those products. If a discount is on one of them, checkout is blocked with your message until the code is removed. It counts every discount on those products, including automatic discounts, so exclude them from automatic discounts you run.",
   },
@@ -201,7 +217,7 @@ const FAQ = [
   },
   {
     q: "What happens if two rules apply?",
-    a: "For quantity rules of the same type, only one applies — the most restrictive by default, or the highest priority if you choose that in Settings → Rule behavior. Other rule types all apply. The Overview and Rules pages list any conflicts.",
+    a: "For quantity rules of the same type, only one applies — the most restrictive by default, or the highest priority if you choose that in Settings → Rule behavior. Other rule types all apply — each group limit is checked on its own, next to any per-product limits. The Overview and Rules pages list any conflicts.",
   },
 ];
 

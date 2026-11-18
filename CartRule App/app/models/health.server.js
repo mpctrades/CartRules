@@ -7,7 +7,7 @@
 //  - more tags/collections than the checkout can check (100 per list).
 // Conflicts — two live quantity rules of the same type that cover at least
 // one common product; the shared engine's conflict mode decides which wins.
-import { TARGET_TYPES, RULE_TYPES, RULE_STATUS, CONFLICT_MODES, RULE_TYPE_INFO } from "./ruleConstants";
+import { TARGET_TYPES, RULE_TYPES, RULE_STATUS, CONFLICT_MODES, RULE_TYPE_INFO, splitTarget } from "./ruleConstants";
 import { getScheduleStatus } from "./ruleDisplay";
 import { lockedFeatures } from "./plan.server";
 import { MAX_INPUT_VARIABLE_ITEMS } from "./rules.server";
@@ -39,7 +39,8 @@ async function computeHealth(admin, rules, plan) {
   const health = Object.fromEntries(rules.map((r) => [r.id, { issues: [] }]));
   const targets = [];
   for (const rule of rules) {
-    for (const t of [rule.target, rule.comboTarget]) if (t && t.type !== TARGET_TYPES.ALL) targets.push({ rule, t });
+    // A group's tags / collections / products are checked like plain targets.
+    for (const t of [rule.target, rule.comboTarget].flatMap(splitTarget)) if (t && t.type !== TARGET_TYPES.ALL) targets.push({ rule, t });
   }
 
   // Deleted products / variants / collections.
@@ -115,17 +116,17 @@ async function computeHealth(admin, rules, plan) {
 
   const tagCount = new Set(
     rules.filter(relevant).flatMap((r) =>
-      [r.target, r.comboTarget].filter((t) => t?.type === TARGET_TYPES.TAG).flatMap((t) => t.values),
+      [r.target, r.comboTarget].flatMap(splitTarget).filter((t) => t?.type === TARGET_TYPES.TAG).flatMap((t) => t.values),
     ),
   ).size;
   const collectionCount = new Set(
     rules.filter(relevant).flatMap((r) =>
-      [r.target, r.comboTarget].filter((t) => t?.type === TARGET_TYPES.COLLECTION).flatMap((t) => t.values),
+      [r.target, r.comboTarget].flatMap(splitTarget).filter((t) => t?.type === TARGET_TYPES.COLLECTION).flatMap((t) => t.values),
     ),
   ).size;
   if (tagCount > MAX_INPUT_VARIABLE_ITEMS || collectionCount > MAX_INPUT_VARIABLE_ITEMS) {
     for (const r of rules.filter(relevant)) {
-      if ([r.target, r.comboTarget].some((t) => t?.type === TARGET_TYPES.TAG || t?.type === TARGET_TYPES.COLLECTION)) {
+      if ([r.target, r.comboTarget].flatMap(splitTarget).some((t) => t?.type === TARGET_TYPES.TAG || t?.type === TARGET_TYPES.COLLECTION)) {
         health[r.id].issues.push({
           code: "too_many_targets",
           message: `Your rules use more than ${MAX_INPUT_VARIABLE_ITEMS} different tags or collections — checkout only checks the first ${MAX_INPUT_VARIABLE_ITEMS}`,

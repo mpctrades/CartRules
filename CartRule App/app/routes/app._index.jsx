@@ -471,6 +471,7 @@ function StatusCard({ data, navigate, fetcher, onShowSetup, setupDone }) {
 
 const RULE_ICONS = {
   [RULE_TYPES.MAX_QUANTITY]: InventoryIcon,
+  [RULE_TYPES.GROUP_LIMIT]: InventoryIcon,
   [RULE_TYPES.MIN_QUANTITY]: InventoryIcon,
   [RULE_TYPES.QUANTITY_MULTIPLE]: InventoryIcon,
   [RULE_TYPES.NO_DISCOUNT]: DiscountIcon,

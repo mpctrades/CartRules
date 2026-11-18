@@ -48,6 +48,10 @@ function listLabel(values, labels) {
 /** "Tag: Snow", "All products", "Collection: Premium +1 more". */
 export function describeTarget(target) {
   if (!target || target.type === TARGET_TYPES.ALL) return "All products";
+  if (target.type === TARGET_TYPES.MIXED) {
+    // "Group: hoodie" / "Group: hoodie +2 more"
+    return `Group: ${listLabel(target.values, target.labels)}`;
+  }
   const noun = {
     [TARGET_TYPES.PRODUCT]: "Product",
     [TARGET_TYPES.VARIANT]: "Variant",
@@ -90,6 +94,8 @@ export function describeRule(rule, currency) {
       return `Sold in multiples of ${v} · ${scope}`;
     case RULE_TYPES.MAX_CART_ITEMS:
       return `At most ${v} items in cart · ${scope}`;
+    case RULE_TYPES.GROUP_LIMIT:
+      return `Maximum ${v} in total per order · ${target}`;
     case RULE_TYPES.PRODUCT_COMBINATION:
       return `${target} can't be bought with ${describeTarget(rule.comboTarget)}`;
     default:
@@ -143,6 +149,7 @@ export const EVENT_LABELS = {
   minimum_cart_not_met: "Cart minimum not met",
   maximum_cart_value_blocked: "Maximum cart value blocked",
   max_items_blocked: "Too many items in cart",
+  group_limit_blocked: "Group limit",
   combination_blocked: "Product combination blocked",
   checkout_blocked: "Checkout blocked",
   rule_passed: "Rule passed",
@@ -154,6 +161,11 @@ export function describeEvent(event, currency) {
   const fmt = (n) => (money ? formatMoney(n, currency) : String(n));
   if (event.eventType === "discount_blocked") {
     return event.detail?.startsWith("Code ") ? `${event.detail} was rejected` : "Discount rejected";
+  }
+  if (event.eventType === "group_limit_blocked" && event.attempted != null) {
+    // "Group limit · Hoodies · Checkout blocked at 3 units"
+    // (The rule name is shown on its own line next to this.)
+    return `Checkout blocked at ${event.attempted} ${event.attempted === 1 ? "unit" : "units"} · Max ${event.allowed ?? "?"}`;
   }
   if (event.attempted != null && event.allowed != null) {
     if (money) return `Cart total ${fmt(event.attempted)} · Limit ${fmt(event.allowed)}`;

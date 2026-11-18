@@ -2,10 +2,49 @@
 // the Rules page). Products/variants are counted from the rule itself; tags,
 // vendors, types and collections are asked of Shopify in batched,
 // aliased productsCount / collection.productsCount queries.
-import { TARGET_TYPES } from "./ruleConstants";
+import { TARGET_TYPES, splitTarget } from "./ruleConstants";
 
 const SEARCH_FIELD = { [TARGET_TYPES.TAG]: "tag", [TARGET_TYPES.VENDOR]: "vendor", [TARGET_TYPES.PRODUCT_TYPE]: "product_type" };
 const quote = (v) => `'${String(v).replace(/['\\]/g, "\\$&")}'`;
+
+/**
+ * One product search covering every part of a group (tags, collections,
+ * picked products), ORed so a product matching several parts counts once.
+ */
+export function groupSearchQuery(target) {
+  const terms = [];
+  for (const part of splitTarget(target)) {
+    for (const v of part.values) {
+      if (part.type === "tag") terms.push(`tag:${quote(v)}`);
+      else if (part.type === "collection") terms.push(`collection_id:${String(v).split("/").pop()}`);
+      else if (part.type === "product") terms.push(`id:${String(v).split("/").pop()}`);
+    }
+  }
+  return terms.length ? terms.join(" OR ") : null;
+}
+
+/**
+ * "→ 6 products, 42 variants" for the group form. Counts up to 250 products
+ * exactly (variants summed per product); beyond that `more` is true.
+ */
+export async function countGroup(admin, target) {
+  const query = groupSearchQuery(target);
+  if (!query) return { products: 0, variants: 0, more: false };
+  const response = await admin.graphql(
+    `#graphql
+    query CartRulesGroupCount($query: String) {
+      productsCount(query: $query) { count }
+      products(first: 250, query: $query) { nodes { variantsCount { count } } }
+    }`,
+    { variables: { query } },
+  );
+  const json = await response.json();
+  if (json.errors?.length) throw new Error(JSON.stringify(json.errors));
+  const nodes = json.data?.products?.nodes ?? [];
+  const products = json.data?.productsCount?.count ?? nodes.length;
+  const variants = nodes.reduce((sum, n) => sum + (n.variantsCount?.count ?? 0), 0);
+  return { products, variants, more: products > nodes.length };
+}
 
 /** { [ruleId]: number | null } — null when the count isn't known (e.g. "All products"). */
 export async function getTargetProductCounts(admin, rules) {
@@ -17,6 +56,10 @@ export async function getTargetProductCounts(admin, rules) {
       result[rule.id] = null;
     } else if (t.type === TARGET_TYPES.PRODUCT) {
       result[rule.id] = t.values.length;
+    } else if (t.type === TARGET_TYPES.MIXED) {
+      const q = groupSearchQuery(t);
+      if (q) queries.push({ ruleId: rule.id, kind: "search", arg: q });
+      else result[rule.id] = null;
     } else if (t.type === TARGET_TYPES.VARIANT) {
       result[rule.id] = null;
     } else if (SEARCH_FIELD[t.type]) {

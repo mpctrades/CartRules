@@ -15,7 +15,7 @@
  * the merchant's Activity and Analytics pages.
  */
 
-const PRODUCT_LEVEL_TYPES = ["max_quantity", "min_quantity", "quantity_multiple", "no_discount", "product_combination"];
+const PRODUCT_LEVEL_TYPES = ["max_quantity", "group_limit", "min_quantity", "quantity_multiple", "no_discount", "product_combination"];
 
 function readJson(root, selector, fallback) {
   try {

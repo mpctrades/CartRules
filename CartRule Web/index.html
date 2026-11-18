@@ -383,6 +383,7 @@
             <ul class="plan__list">
               <li>3 active rules</li>
               <li>Both rule types</li>
+              <li>1 group limit rule (e.g. max 2 hoodies in total)</li>
               <li>Product, collection &amp; tag targeting</li>
               <li>Custom messages, any language</li>
               <li>Product-page &amp; cart notices</li>
@@ -398,6 +399,7 @@
             <ul class="plan__list">
               <li>Everything in Free</li>
               <li>Unlimited active rules</li>
+              <li>Unlimited group limit rules + your own message</li>
               <li>Email support</li>
             </ul>
             <div class="plan__cta"><a href="guide.html" class="btn btn--primary btn--block">Choose Growth</a></div>
@@ -490,6 +492,31 @@
                 they try to add more, CartRules auto-adjusts the cart quantity down to the limit and shows a note
                 explaining why. It does not currently track quantity across separate orders — that's on the v2 roadmap.
               </div>
+            </div>
+          </div>
+
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false">Can I limit several products together — say, max 2 hoodies in
+              total?<span class="icon">+</span></button>
+            <div class="faq-a">
+              <div class="faq-a__inner">Yes — that's a <strong>Group limit</strong> rule. "Max quantity" counts each
+                product on its own (2 of <em>each</em> hoodie); a group limit adds the selected products together (2
+                hoodies in total, any model, size or color). Build the group from tags, collections and products; a
+                product matched twice counts once, and anything you didn't select never counts. Checkout payment is
+                blocked with your message — including Shop Pay, Apple Pay, Google Pay and PayPal — and nothing is removed
+                from the cart. <a href="guide.html#group-limit" style="color:var(--accent);">How it works →</a></div>
+            </div>
+          </div>
+
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false">A customer wants more than the limit. How can they still
+              order?<span class="icon">+</span></button>
+            <div class="faq-a">
+              <div class="faq-a__inner">Send them a draft order invoice (Orders → Drafts) with your shipping quote. If
+                your draft order screen offers an option to ignore checkout rules, turn it on; otherwise tag the customer
+                <span class="mono">cartrules-exempt</span> — every rule with that tag under Exceptions skips them.
+                Customer messages are plain text at checkout, so write your email address out rather than a link.
+                <a href="guide.html#quote-flow" style="color:var(--accent);">Step-by-step tutorial →</a></div>
             </div>
           </div>
 

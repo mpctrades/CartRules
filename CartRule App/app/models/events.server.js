@@ -25,6 +25,7 @@ export const EVENT_TYPE_BY_RULE_TYPE = {
   cart_min_value: "minimum_cart_not_met",
   cart_max_value: "maximum_cart_value_blocked",
   max_cart_items: "max_items_blocked",
+  group_limit: "group_limit_blocked",
   product_combination: "combination_blocked",
 };
 
@@ -33,6 +34,7 @@ export const QUANTITY_EVENTS = [
   "minimum_not_met",
   "multiple_not_met",
   "max_items_blocked",
+  "group_limit_blocked",
 ];
 export const DISCOUNT_EVENTS = ["discount_blocked"];
 export const CART_EVENTS = [

@@ -78,7 +78,9 @@ export default function Templates() {
               </Text>
               <div className="cr-muted" style={{ marginTop: "auto" }}>
                 {RULE_TYPE_INFO[t.rule.ruleType]?.title} ·{" "}
-                {target.type !== "all" && !target.values.length
+                {target.type === "mixed" && !target.values.length
+                  ? "Products you choose"
+                  : target.type !== "all" && !target.values.length
                   ? `${TARGET_INFO[target.type]?.label} you choose`
                   : describeTarget(target)}
                 {extras.length ? ` · ${extras.join(" · ")}` : ""}

@@ -187,6 +187,7 @@ function sampleVars(key, currency) {
     min_quantity: 6,
     quantity_multiple: 6,
     max_cart_items: 10,
+    group_limit: 2,
     cart_min_value: formatMoney(50, currency),
     cart_max_value: formatMoney(500, currency),
   }[key];

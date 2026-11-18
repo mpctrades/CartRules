@@ -614,3 +614,49 @@
   display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
   padding: 10px 14px; border-radius: 10px; border: 1px dashed var(--p-color-border);
 }
+
+/* Group limit (Update 1): live product count, rule tester. */
+.cr-group-count {
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--cr-orange-soft);
+  border: 1px solid var(--cr-orange-border);
+}
+.cr-tester {
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px dashed var(--cr-orange-border);
+  background: var(--p-color-bg-surface, #fff);
+}
+.cr-tester-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--cr-border);
+}
+.cr-tester-row:last-child {
+  border-bottom: 0;
+}
+.cr-test-result {
+  padding: 10px 14px;
+  border-radius: 10px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  transition: opacity 0.15s ease;
+}
+.cr-test-result--blocked {
+  background: var(--p-color-bg-surface-critical, #fee9e8);
+  color: var(--p-color-text-critical, #8e1f0b);
+}
+.cr-test-result--ok {
+  background: var(--p-color-bg-surface-success, #e3f1df);
+  color: var(--p-color-text-success, #0c5132);
+}
+.cr-test-result--muted {
+  background: var(--p-color-bg-surface-secondary, #f1f1f1);
+  color: var(--p-color-text-secondary, #616161);
+}
+.cr-test-result--stale {
+  opacity: 0.55;
+}

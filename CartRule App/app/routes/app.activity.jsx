@@ -15,6 +15,7 @@ const PAGE_SIZE = 25;
 const EVENT_TYPE_OPTIONS = [
   { label: "All events", value: "" },
   { label: "Quantity blocked", value: "quantity_blocked" },
+  { label: "Group limit blocked", value: "group_limit_blocked" },
   { label: "Discount blocked", value: "discount_blocked" },
   { label: "Minimum not met", value: "minimum_not_met" },
   { label: "Quantity multiple not met", value: "multiple_not_met" },
@@ -251,6 +252,7 @@ export default function Activity() {
                           {EVENT_LABELS[e.eventType] ?? "Rule triggered"}
                         </Text>
                         {e.source === "test" ? <Badge tone="info">Test</Badge> : <Badge>Storefront</Badge>}
+                        {e.ruleType === "group_limit" ? <Badge tone="attention">Group</Badge> : null}
                       </InlineStack>
                       <div style={{ marginTop: 2 }}>{e.ruleTitle}</div>
                       {describeEvent(e, data.currency) ? (

@@ -1,6 +1,6 @@
 // The plan feature matrix — client-safe, so the rule form shows locks before
 // saving; plan.server.js re-exports it as lockedFeatures for server checks.
-import { RULE_TYPE_INFO, TARGET_INFO, CUSTOMER_TYPES, MARKET_TYPES, planAllows } from "./ruleConstants";
+import { RULE_TYPE_INFO, TARGET_INFO, CUSTOMER_TYPES, MARKET_TYPES, planAllows, splitTarget } from "./ruleConstants";
 
 export const FEATURE_PLANS = {
   message: "Growth",
@@ -16,6 +16,10 @@ export const FEATURE_PLANS = {
 // not lose rules they set up for free.
 export const LEGACY_FREE_FEATURES = new Set(["target:collection", "target:tag", "message"]);
 
+// Free plan: how many group limit rules a shop may have (they count toward
+// the Free plan's active-rule cap like any other rule).
+export const FREE_GROUP_RULE_LIMIT = 1;
+
 export function lockedFeaturesClient(rule, plan) {
   const locked = [];
   const need = (key, label, required) => {
@@ -24,7 +28,8 @@ export function lockedFeaturesClient(rule, plan) {
   };
   const typeInfo = RULE_TYPE_INFO[rule.ruleType];
   if (typeInfo) need("type", typeInfo.title, typeInfo.plan);
-  for (const t of [rule.target, rule.comboTarget]) {
+  // A group's tag / collection parts need the same plan as tag / collection targeting.
+  for (const t of [rule.target, rule.comboTarget].flatMap(splitTarget)) {
     if (t && TARGET_INFO[t.type]) need(`target:${t.type}`, `${TARGET_INFO[t.type].label} targeting`, TARGET_INFO[t.type].plan);
   }
   if (rule.message?.trim()) need("message", "Custom customer message", FEATURE_PLANS.message);
