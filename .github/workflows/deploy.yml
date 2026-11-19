@@ -79,6 +79,12 @@ jobs:
           cache: "npm"
           cache-dependency-path: "CartRule App/package-lock.json"
       - run: npm ci
+      # The checkout Function is Rust (extensions/cartrules-validation).
+      # `npm test` includes tests/function-parity.test.mjs, which checks the
+      # Rust Function gives the same answers as engine/function.js on
+      # thousands of randomized carts — so it needs cargo here.
+      - run: rustup toolchain install stable --profile minimal && rustup target add wasm32-unknown-unknown
+      - run: npm test
       - run: npm run build
 
   shopify-deploy:
@@ -97,11 +103,9 @@ jobs:
           cache: "npm"
           cache-dependency-path: "CartRule App/package-lock.json"
       - run: npm ci
-      # The checkout Function has its own package.json (@shopify/shopify_function),
-      # and its compiled dist/ is gitignored — without this install `shopify app
-      # deploy` can't build the Function that enforces rules at checkout.
-      - run: npm ci
-        working-directory: "CartRule App/extensions/cartrules-validation"
+      # `shopify app deploy` builds the Rust checkout Function with
+      # `cargo build --target=wasm32-unknown-unknown --release`.
+      - run: rustup toolchain install stable --profile minimal && rustup target add wasm32-unknown-unknown
       - name: shopify app deploy
         env:
           SHOPIFY_APP_AUTOMATION_TOKEN: ${{ secrets.SHOPIFY_APP_AUTOMATION_TOKEN }}

@@ -1,4 +1,9 @@
-// CartRules — Cart and Checkout Validation Function
+// CartRules — JavaScript reference of the checkout Function.
+//
+// The Function Shopify runs is the Rust port in
+// extensions/cartrules-validation (JavaScript blew the 11M-instruction
+// budget on big carts). This file is what that port must match:
+// tests/function-parity.test.mjs runs both on the same randomized carts.
 //
 // Target: cart.validations.generate.run
 // Docs: https://shopify.dev/docs/api/functions/latest/cart-and-checkout-validation
@@ -10,7 +15,7 @@
 // variables (see cart_validations_generate_run.graphql). The decision itself
 // is made by ./engine.js — the same code the admin app's rule simulator runs.
 
-import { evaluateCart } from "./engine";
+import { evaluateCart } from "./engine.js";
 
 /**
  * @param {any} input - shape defined by cart_validations_generate_run.graphql

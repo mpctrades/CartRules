@@ -3,7 +3,7 @@
 // the engine decides (checkout, cart guard and rule tester all run it).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { evaluateCart, collectInputVariables, ruleAppliesToProduct } from "../extensions/cartrules-validation/src/engine.js";
+import { evaluateCart, collectInputVariables, ruleAppliesToProduct } from "../engine/engine.js";
 
 const line = (o) => ({
   productId: "gid://shopify/Product/1",

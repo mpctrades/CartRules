@@ -1,6 +1,6 @@
 // "Test a rule": builds a cart from real products and runs it through the
-// SAME engine the checkout Function runs (extensions/cartrules-validation/
-// src/engine.js), with the rule converted by the same buildRulesCache the
+// same engine checkout enforces (engine/engine.js, which the Rust checkout
+// Function is tested against), with the rule converted by the same buildRulesCache the
 // live cache uses — so the result is what checkout would do, not a guess.
 import { evaluateCart } from "./ruleEngine.generated.js";
 import {

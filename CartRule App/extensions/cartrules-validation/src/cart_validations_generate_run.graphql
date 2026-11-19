@@ -74,7 +74,7 @@ query Input($productTags: [String!], $collectionIds: [ID!], $customerTags: [Stri
   }
   shop {
     metafield(namespace: "cartrules", key: "rules_cache") {
-      value
+      jsonValue
     }
   }
 }

@@ -186,7 +186,7 @@ export const MARKET_TYPES = {
 };
 
 // Extra "AND" conditions (step 3). Each is evaluated by the shared engine
-// (extensions/cartrules-validation/src/engine.js). Product conditions are
+// (engine/engine.js, and its Rust port in the checkout Function). Product conditions are
 // checked per cart line; the rest once per cart.
 export const CONDITION_FIELDS = {
   product_tag: { label: "Product tag", scope: "line", ops: ["is", "is_not"] },

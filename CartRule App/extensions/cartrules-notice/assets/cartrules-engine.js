@@ -1,15 +1,18 @@
-// GENERATED from extensions/cartrules-validation/src/engine.js by scripts/sync-engine.mjs — do not edit.
-// CartRules rule engine — the ONE place rule logic lives.
+// GENERATED from engine/engine.js by scripts/sync-engine.mjs — do not edit.
+// CartRules rule engine — the JavaScript side of the rules (admin, theme;
+// the checkout Function runs its Rust port, extensions/cartrules-validation/src/engine.rs).
 //
 // Used by:
-//  - the checkout Function (./index.js), which turns its GraphQL input into
-//    the normalized cart below and blocks checkout on any violation;
+//  - the checkout Function: ported to Rust in
+//    extensions/cartrules-validation/src/engine.rs (./function.js is the
+//    JavaScript reference it's tested against — keep the two in step);
 //  - the admin app's rule simulator (app/models/simulator.server.js), which
 //    builds the same normalized cart from real product data, so "Test a rule"
 //    shows exactly what checkout would do.
 //
-// Pure JavaScript, no imports, no Date/Math.random — it has to run inside
-// the Function's WebAssembly sandbox too.
+// Pure JavaScript, no imports, no Date/Math.random. Any change to rule
+// behaviour here must be made in engine.rs too; `npm test` fails if the two
+// disagree (tests/function-parity.mjs + cargo test).
 //
 // Normalized cart:
 // {

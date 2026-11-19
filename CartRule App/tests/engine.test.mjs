@@ -2,7 +2,7 @@
 // storefront (theme blocks) and in the admin simulator. Run: npm test
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { evaluateCart, collectInputVariables, ruleAppliesToProduct } from "../extensions/cartrules-validation/src/engine.js";
+import { evaluateCart, collectInputVariables, ruleAppliesToProduct } from "../engine/engine.js";
 test("rule engine", () => {
 const line = (o) => ({ productId: "gid://shopify/Product/1", variantId: "gid://shopify/ProductVariant/11", title: "Snow", vendor: "Acme", productType: "Board", tags: ["limited"], collections: [], quantity: 1, subtotal: 10, hasDiscount: false, ...o });
 const cart = (lines, o = {}) => ({ lines, customer: { loggedIn: false, b2b: false, tags: [] }, country: "US", subtotal: lines.reduce((s, l) => s + l.subtotal, 0), currency: "USD", discountCode: null, ...o });
