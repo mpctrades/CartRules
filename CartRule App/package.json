@@ -19,7 +19,7 @@
     "prisma": "prisma",
     "vite": "vite",
     "sync-engine": "node scripts/sync-engine.mjs",
-    "test": "node --test tests/"
+    "test": "node --test \"tests/*.test.mjs\""
   },
   "engines": {
     "node": "^20 || >=22"
