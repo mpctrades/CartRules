@@ -20,10 +20,10 @@ query Input($productTags: [String!], $collectionIds: [ID!], $customerTags: [Stri
           amount
         }
       }
+      # Only how many allocations a line has is read (Block discount rule) —
+      # __typename keeps each one as small as possible in the input.
       discountAllocations {
-        discountedAmount {
-          amount
-        }
+        __typename
       }
       merchandise {
         __typename

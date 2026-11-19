@@ -31,7 +31,7 @@ export function cartValidationsGenerateRun(input) {
   const rules = (Array.isArray(cache.rules) ? cache.rules : []).map(fromLegacy);
   if (rules.length === 0) return { operations: [] };
 
-  const result = evaluateCart(toEngineCart(input), rules, { conflictMode: cache.conflictMode });
+  const result = evaluateCart(toEngineCart(input), rules, { conflictMode: cache.conflictMode, matches: false });
   // Group limits never stop items going INTO the cart — the shopper keeps
   // everything they added and only payment is blocked (Update 1 brief: "3+
   // hoodies -> checkout blocked ... without removing anything from the
@@ -70,7 +70,10 @@ function fromLegacy(rule) {
 }
 
 function trueTags(list) {
-  return (list || []).filter((t) => t.hasTag).map((t) => String(t.tag).toLowerCase());
+  const out = [];
+  if (!list) return out;
+  for (let i = 0; i < list.length; i++) if (list[i].hasTag) out.push(String(list[i].tag).toLowerCase());
+  return out;
 }
 
 /**
@@ -102,7 +105,10 @@ class EngineLine {
   }
   get collections() {
     if (this._collections === undefined) {
-      this._collections = (this._product.inCollections || []).filter((c) => c.isMember).map((c) => c.collectionId);
+      const out = [];
+      const list = this._product.inCollections;
+      if (list) for (let i = 0; i < list.length; i++) if (list[i].isMember) out.push(list[i].collectionId);
+      this._collections = out;
     }
     return this._collections;
   }
