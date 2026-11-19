@@ -8,7 +8,7 @@
 // locally, but CI installs it, so a mismatch never ships.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { cartValidationsGenerateRun } from "../engine/function.js";
@@ -141,6 +141,7 @@ test("Rust checkout Function gives the same answers as engine/function.js", (t) 
     if (expected.length) blocked++;
     rows.push(JSON.stringify({ input: rustInput, expected }));
   }
+  mkdirSync(`${FUNCTION_DIR}/tests`, { recursive: true });
   writeFileSync(`${FUNCTION_DIR}/tests/parity-cases.jsonl`, rows.join("\n") + "\n");
   assert.ok(blocked > CASES / 5, `only ${blocked} blocked carts — generator too tame`);
 
