@@ -189,7 +189,7 @@ const FAQ = [
   },
   {
     q: "A customer needs more than the limit (e.g. a shipping quote). How do they pay?",
-    a: "Create a draft order (Shopify admin → Orders → Drafts) with their items and your shipping price, and send the invoice. If your draft order screen offers an option to ignore checkout rules, turn it on. Otherwise — or for a customer you want to let through every time — add the tag cartrules-exempt to the customer (Customers → the customer → Tags). Rules with that tag under Exceptions are skipped for them. Exceptions only work for customers checkout knows: logged in, or paying a draft order sent to them.",
+    a: "Create a draft order (Shopify admin → Orders → Drafts) with their items and your shipping price. When you send the invoice or share its checkout link, turn on “Checkout rules — Ignore all checkout rules” in that dialog: without it, the invoice is blocked like any other checkout. Or — for a customer you want to let through every time — add the tag cartrules-exempt to the customer (Customers → the customer → Tags). Rules with that tag under Exceptions are skipped for them. Exceptions only work for customers checkout knows: logged in, or paying a draft order sent to them.",
   },
   {
     q: "Can my message include a link or an email address?",
