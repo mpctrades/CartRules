@@ -1,6 +1,6 @@
-// Copies the shared rule engine (the checkout Function's source of truth)
-// to where the other runtimes load it, so all of them run exactly the logic
-// the Function runs:
+// Copies the shared rule engine (engine/engine.js — the JavaScript side of
+// the rules; the checkout Function runs its Rust port, kept in step by
+// tests/function-parity.mjs) to where the other runtimes load it:
 //   - the theme app extension's assets (storefront blocks)
 //   - app/models/ruleEngine.generated.js (admin: rule form, simulator, cache).
 //     The admin can't import from extensions/ directly: `shopify app dev`'s
@@ -9,7 +9,7 @@
 // if a copy is stale (run in CI / before build and deploy).
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 
-const SRC = "extensions/cartrules-validation/src/engine.js";
+const SRC = "engine/engine.js";
 const DESTS = [
   "extensions/cartrules-notice/assets/cartrules-engine.js",
   "app/models/ruleEngine.generated.js",

@@ -6,7 +6,8 @@
 // metaobjects, so every write here also rebuilds a compact JSON snapshot of
 // the rules that are live right now into the `cartrules.rules_cache` shop
 // metafield. The Function and the theme blocks read that snapshot; both run
-// the same engine (extensions/cartrules-validation/src/engine.js).
+// the same rules (engine/engine.js; the Function's Rust port is tested
+// against it).
 //
 // Tag/collection/customer-tag rules are NOT expanded into product lists any
 // more: the Function checks membership itself through hasTags/inCollections,

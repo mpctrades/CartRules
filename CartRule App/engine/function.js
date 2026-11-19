@@ -1,4 +1,9 @@
-// CartRules — Cart and Checkout Validation Function
+// CartRules — JavaScript reference of the checkout Function.
+//
+// The Function Shopify runs is the Rust port in
+// extensions/cartrules-validation (JavaScript blew the 11M-instruction
+// budget on big carts). This file is what that port must match:
+// tests/function-parity.test.mjs runs both on the same randomized carts.
 //
 // Target: cart.validations.generate.run
 // Docs: https://shopify.dev/docs/api/functions/latest/cart-and-checkout-validation
@@ -10,7 +15,7 @@
 // variables (see cart_validations_generate_run.graphql). The decision itself
 // is made by ./engine.js — the same code the admin app's rule simulator runs.
 
-import { evaluateCart } from "./engine";
+import { evaluateCart } from "./engine.js";
 
 /**
  * @param {any} input - shape defined by cart_validations_generate_run.graphql
@@ -31,7 +36,14 @@ export function cartValidationsGenerateRun(input) {
   const rules = (Array.isArray(cache.rules) ? cache.rules : []).map(fromLegacy);
   if (rules.length === 0) return { operations: [] };
 
-  const { violations } = evaluateCart(toEngineCart(input), rules, { conflictMode: cache.conflictMode });
+  const result = evaluateCart(toEngineCart(input), rules, { conflictMode: cache.conflictMode, matches: false });
+  // Group limits never stop items going INTO the cart — the shopper keeps
+  // everything they added and only payment is blocked (Update 1 brief: "3+
+  // hoodies -> checkout blocked ... without removing anything from the
+  // cart"). The cart guard block explains why on the cart page. Other rule
+  // types keep blocking at add-to-cart as before.
+  const atCart = input?.buyerJourney?.step === "CART_INTERACTION";
+  const violations = atCart ? result.violations.filter((v) => v.type !== "group_limit") : result.violations;
   if (violations.length === 0) return { operations: [] };
 
   // Settings → Storefront → "Checkout messages" off: block with one neutral
@@ -63,7 +75,10 @@ function fromLegacy(rule) {
 }
 
 function trueTags(list) {
-  return (list || []).filter((t) => t.hasTag).map((t) => String(t.tag).toLowerCase());
+  const out = [];
+  if (!list) return out;
+  for (let i = 0; i < list.length; i++) if (list[i].hasTag) out.push(String(list[i].tag).toLowerCase());
+  return out;
 }
 
 /**
@@ -95,7 +110,10 @@ class EngineLine {
   }
   get collections() {
     if (this._collections === undefined) {
-      this._collections = (this._product.inCollections || []).filter((c) => c.isMember).map((c) => c.collectionId);
+      const out = [];
+      const list = this._product.inCollections;
+      if (list) for (let i = 0; i < list.length; i++) if (list[i].isMember) out.push(list[i].collectionId);
+      this._collections = out;
     }
     return this._collections;
   }

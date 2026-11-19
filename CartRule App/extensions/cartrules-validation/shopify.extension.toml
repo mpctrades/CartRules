@@ -14,7 +14,7 @@ description = "Blocks checkout when a CartRules rule is violated."
   [[extensions.targeting]]
   target = "cart.validations.generate.run"
   input_query = "src/cart_validations_generate_run.graphql"
-  export = "cart-validations-generate-run"
+  export = "cart_validations_generate_run"
 
 # Values for the input query's $productTags / $collectionIds / $customerTags,
 # written to the Validation by syncRulesCache (app/models/rules.server.js).
@@ -22,7 +22,9 @@ description = "Blocks checkout when a CartRules rule is violated."
 namespace = "$app:cartrules"
 key = "function_variables"
 
+# Rust (was JavaScript until Nov 2026 — the JS build ran out of Shopify's
+# 11M-instruction budget on big carts). Needs: rustup target add wasm32-unknown-unknown
 [extensions.build]
-command = ""
-path = "dist/function.wasm"
-watch = ["src/**/*.js", "src/**/*.graphql"]
+command = "cargo build --target=wasm32-unknown-unknown --release"
+path = "target/wasm32-unknown-unknown/release/cartrules-validation.wasm"
+watch = ["src/**/*.rs", "src/**/*.graphql"]

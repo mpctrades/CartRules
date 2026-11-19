@@ -9,6 +9,9 @@
 # themselves stay in the shop's `cartrules.rules_cache` metafield, which the
 # theme blocks read too.
 query Input($productTags: [String!], $collectionIds: [ID!], $customerTags: [String!]) {
+  buyerJourney {
+    step
+  }
   cart {
     lines {
       quantity
@@ -17,10 +20,10 @@ query Input($productTags: [String!], $collectionIds: [ID!], $customerTags: [Stri
           amount
         }
       }
+      # Only how many allocations a line has is read (Block discount rule) —
+      # __typename keeps each one as small as possible in the input.
       discountAllocations {
-        discountedAmount {
-          amount
-        }
+        __typename
       }
       merchandise {
         __typename
@@ -71,7 +74,7 @@ query Input($productTags: [String!], $collectionIds: [ID!], $customerTags: [Stri
   }
   shop {
     metafield(namespace: "cartrules", key: "rules_cache") {
-      value
+      jsonValue
     }
   }
 }
