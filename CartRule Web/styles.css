@@ -1273,6 +1273,7 @@ table.compare tbody tr:last-child td { border-bottom: none; }
 .status-tag::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
 .status-tag.planned { background: #eef1fb; color: #3b4fb0; }
 .status-tag.exploring { background: #f1efe6; color: var(--ink-faint); }
+.status-tag.live { background: #e7f6ec; color: #1f7a3d; }
 
 /* ---------- FAQ ---------- */
 

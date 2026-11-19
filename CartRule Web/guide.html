@@ -79,7 +79,7 @@
       <aside class="guide-toc">
         <select class="guide-toc-select" aria-label="Jump to section">
           <option value="quick-start">1. Quick start</option>
-          <option value="rule-types">2. The two rule types</option>
+          <option value="rule-types">2. Core rule types</option>
           <option value="create-a-rule">3. Creating a rule</option>
           <option value="dashboard">4. Your rules dashboard</option>
           <option value="customer-view">5. What customers see</option>
@@ -359,7 +359,7 @@
         <section class="g-section" id="customer-view">
           <div class="g-num">05</div>
           <h2>What customers actually see</h2>
-          <p class="lede">Both rule types are designed to correct politely, not block with a mystery error.</p>
+          <p class="lede">Every rule type is designed to correct politely, not block with a mystery error.</p>
           <div class="g-body">
             <div class="g-block">
               <div class="g-text">
@@ -467,8 +467,10 @@
                 <li><strong>Create the rule.</strong> CartRules → Rules → Create rule → <em>Group limit</em>. In
                   <em>Which products count toward the group?</em> add the tag <span class="mono">hoodie</span> — the form
                   shows how many products and variants that covers. Set <em>Maximum units for the whole group per
-                  order</em> to <strong>2</strong>.</li>
-                <li><strong>Write the message.</strong> Plain text — links aren't clickable at checkout, so write the
+                  order</em> to <strong>2</strong>. (Groups built from tags or collections, and your own message, are on
+                  Growth. On Free, pick the hoodie products one by one under <em>Products</em> — the limit works the same,
+                  with the ready-made message.)</li>
+                <li><strong>Write the message</strong> (Growth)<strong>.</strong> Plain text — links aren't clickable at checkout, so write the
                   email address out. Keep it short; most shoppers read it on a phone.</li>
                 <li><strong>Test it before you activate.</strong> In <em>Test this rule</em>, add 2 of one hoodie and 1
                   of another: it shows <em>Blocked — 3 units in cart, max 2</em> and the message your customer will
@@ -567,13 +569,16 @@
           <div class="g-body">
             <div class="g-text" style="max-width:720px;">
               <ul class="checklist">
-                <li><strong>Free</strong> — every feature (both rule types, product/collection/tag targeting,
-                  custom messages, product-page and cart notices) with up to 3 active rules.</li>
-                <li><strong>Group limit</strong> — Free includes 1 group limit rule with the default message (it
-                  counts toward the 3 active rules). Growth and Pro include unlimited group limit rules with your own
+                <li><strong>Free</strong> — up to 3 active rules: block discounts, max and min quantity, on
+                  products and variants you pick, with ready-made customer messages (8 languages) and the
+                  product-page and cart notices.</li>
+                <li><strong>Group limit</strong> — Free includes 1 group limit rule built from products you pick,
+                  with the default message (it counts toward the 3 active rules). Growth and Pro include unlimited
+                  group limit rules, groups built from tags and collections (like the tag "hoodie"), and your own
                   message.</li>
-                <li><strong>Growth ($4.99/mo)</strong> — everything in Free, unlimited active rules, email
-                  support.</li>
+                <li><strong>Growth ($4.99/mo)</strong> — everything in Free, unlimited active rules, collection,
+                  tag, vendor and product-type targeting, your own messages, cart value / cart size / multiples /
+                  combination rules, scheduled rules, email support.</li>
                 <li><strong>Pro ($9.99/mo)</strong> — everything in Growth, plus priority support.</li>
                 <li>Billing lives under <span class="mono">Plans &amp; billing</span> in the app sidebar — upgrade,
                   downgrade, or cancel any time.</li>
