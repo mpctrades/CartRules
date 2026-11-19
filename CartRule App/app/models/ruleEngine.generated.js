@@ -12,7 +12,7 @@
 //
 // Pure JavaScript, no imports, no Date/Math.random. Any change to rule
 // behaviour here must be made in engine.rs too; `npm test` fails if the two
-// disagree (tests/function-parity.mjs + cargo test).
+// disagree (tests/function-parity.test.mjs + cargo test).
 //
 // Normalized cart:
 // {
