@@ -58,6 +58,10 @@ export const loader = async ({ request }) => {
   if (settings.shopLocale !== locale) {
     try {
       settings = await setSettings(admin, { shopLocale: locale });
+      // Default messages follow the store language: rebuild the checkout
+      // cache now, or shoppers keep seeing the old language until a rule
+      // is saved again.
+      await syncRulesCache(admin, { activateValidation: false });
     } catch (error) {
       console.error("Failed to store shop locale", error);
     }

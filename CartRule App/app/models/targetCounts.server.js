@@ -8,48 +8,65 @@ const SEARCH_FIELD = { [TARGET_TYPES.TAG]: "tag", [TARGET_TYPES.VENDOR]: "vendor
 const quote = (v) => `'${String(v).replace(/['\\]/g, "\\$&")}'`;
 
 /**
- * One product search covering every part of a group (tags, collections,
- * picked products), ORed so a product matching several parts counts once.
+ * Product searches covering a group: one per part (all tags ORed together,
+ * each collection, the picked products). Shopify's product search doesn't
+ * reliably OR a tag filter with a collection_id filter — "tag:x OR
+ * collection_id:y" came back with the tagged products only — so the parts
+ * are searched separately and the products de-duplicated by ID.
  */
-export function groupSearchQuery(target) {
-  const terms = [];
+export function groupSearchQueries(target) {
+  const tags = [];
+  const collections = [];
+  const products = [];
   for (const part of splitTarget(target)) {
     for (const v of part.values) {
-      if (part.type === "tag") terms.push(`tag:${quote(v)}`);
-      else if (part.type === "collection") terms.push(`collection_id:${String(v).split("/").pop()}`);
-      else if (part.type === "product") terms.push(`id:${String(v).split("/").pop()}`);
+      if (part.type === "tag") tags.push(`tag:${quote(v)}`);
+      else if (part.type === "collection") collections.push(`collection_id:${String(v).split("/").pop()}`);
+      else if (part.type === "product") products.push(`id:${String(v).split("/").pop()}`);
     }
   }
-  return terms.length ? terms.join(" OR ") : null;
+  const queries = [];
+  if (tags.length) queries.push(tags.join(" OR "));
+  queries.push(...collections);
+  if (products.length) queries.push(products.join(" OR "));
+  return queries;
 }
 
 /**
- * "→ 6 products, 42 variants" for the group form. Counts up to 250 products
- * exactly (variants summed per product); beyond that `more` is true.
+ * "→ 6 products, 42 variants" for the group form and the Rules list. A
+ * product matched by several parts (tagged and in a selected collection)
+ * counts once. Exact up to 250 products per part; beyond that `more` is true.
  */
 export async function countGroup(admin, target) {
-  const query = groupSearchQuery(target);
-  if (!query) return { products: 0, variants: 0, more: false };
-  const response = await admin.graphql(
-    `#graphql
-    query CartRulesGroupCount($query: String) {
-      productsCount(query: $query) { count }
-      products(first: 250, query: $query) { nodes { variantsCount { count } } }
-    }`,
-    { variables: { query } },
-  );
+  const queries = groupSearchQueries(target);
+  if (queries.length === 0) return { products: 0, variants: 0, more: false };
+  const defs = queries.map((_, i) => `$q${i}: String`).join(", ");
+  const fields = queries
+    .map((_, i) => `p${i}: products(first: 250, query: $q${i}) { nodes { id variantsCount { count } } pageInfo { hasNextPage } }`)
+    .join("\n");
+  const response = await admin.graphql(`#graphql
+    query CartRulesGroupCount(${defs}) { ${fields} }`, {
+    variables: Object.fromEntries(queries.map((q, i) => [`q${i}`, q])),
+  });
   const json = await response.json();
   if (json.errors?.length) throw new Error(JSON.stringify(json.errors));
-  const nodes = json.data?.products?.nodes ?? [];
-  const products = json.data?.productsCount?.count ?? nodes.length;
-  const variants = nodes.reduce((sum, n) => sum + (n.variantsCount?.count ?? 0), 0);
-  return { products, variants, more: products > nodes.length };
+  const seen = new Map();
+  let more = false;
+  queries.forEach((_, i) => {
+    const conn = json.data?.[`p${i}`];
+    if (conn?.pageInfo?.hasNextPage) more = true;
+    for (const n of conn?.nodes ?? []) if (!seen.has(n.id)) seen.set(n.id, n.variantsCount?.count ?? 0);
+  });
+  let variants = 0;
+  for (const v of seen.values()) variants += v;
+  return { products: seen.size, variants, more };
 }
 
 /** { [ruleId]: number | null } — null when the count isn't known (e.g. "All products"). */
 export async function getTargetProductCounts(admin, rules) {
   const result = {};
   const queries = []; // { ruleId, kind: "search"|"collection", arg }
+  const groupRules = []; // counted with countGroup (one request each)
   for (const rule of rules) {
     const t = rule.target;
     if (!t || t.type === TARGET_TYPES.ALL) {
@@ -57,9 +74,7 @@ export async function getTargetProductCounts(admin, rules) {
     } else if (t.type === TARGET_TYPES.PRODUCT) {
       result[rule.id] = t.values.length;
     } else if (t.type === TARGET_TYPES.MIXED) {
-      const q = groupSearchQuery(t);
-      if (q) queries.push({ ruleId: rule.id, kind: "search", arg: q });
-      else result[rule.id] = null;
+      groupRules.push(rule);
     } else if (t.type === TARGET_TYPES.VARIANT) {
       result[rule.id] = null;
     } else if (SEARCH_FIELD[t.type]) {
@@ -96,6 +111,16 @@ export async function getTargetProductCounts(admin, rules) {
       if (error instanceof Response) throw error;
       console.warn("Could not count rule target products", error?.message ?? String(error));
       for (const q of chunk) result[q.ruleId] = null;
+    }
+  }
+  for (const rule of groupRules) {
+    try {
+      const { products, more } = await countGroup(admin, rule.target);
+      result[rule.id] = more ? null : products;
+    } catch (error) {
+      if (error instanceof Response) throw error;
+      console.warn("Could not count group products", error?.message ?? String(error));
+      result[rule.id] = null;
     }
   }
   return result;
