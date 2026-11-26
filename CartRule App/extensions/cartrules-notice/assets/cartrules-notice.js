@@ -159,7 +159,12 @@ function initCartGuard(root, engine) {
   let cartData = readJson(root, "[data-cartrules-cart]", { lines: [] });
   let lastCorrection = null;
 
-  const quantityInputs = () => Array.from(document.querySelectorAll('input[name="updates[]"]'));
+  // The cart drawer (Dawn renders it on the cart page too) keeps its own,
+  // possibly stale, quantity inputs — only the cart page's own ones count.
+  const quantityInputs = () =>
+    Array.from(document.querySelectorAll('input[name="updates[]"]')).filter(
+      (input) => !input.closest("cart-drawer, .cart-drawer, .drawer"),
+    );
 
   function closestAttr(el, names) {
     for (let node = el; node && node.getAttribute; node = node.parentElement) {
@@ -296,9 +301,9 @@ function initCartGuard(root, engine) {
     const sectionId = root.getAttribute("data-section-id");
     if (!sectionId) return Promise.resolve();
     if (reloading) return reloading;
-    reloading = fetch(`${routesRoot()}cart?sections=${encodeURIComponent(sectionId)}`, {
-      headers: { Accept: "application/json" },
-    })
+    // No "Accept: application/json" header: with it Shopify answers /cart with
+    // the cart JSON instead of the rendered sections, and the cart never refreshes.
+    reloading = fetch(`${routesRoot()}cart?sections=${encodeURIComponent(sectionId)}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         const html = data && data[sectionId];
