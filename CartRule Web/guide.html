@@ -111,7 +111,8 @@
             <div class="g-text" style="max-width:640px;">
               <ul class="checklist">
                 <li>Install CartRules from the Shopify App Store and open it from your admin's Apps menu.</li>
-                <li>Click <strong>New rule</strong> — the 3-step wizard opens (rule type → products → message).</li>
+                <li>Click <strong>Create rule</strong> — the 5-step setup opens (rule type → applies to → conditions → message →
+                  review).</li>
                 <li>Pick a rule type, choose the products it applies to, and write one line explaining it to customers.
                 </li>
                 <li>Click <strong>Save &amp; activate</strong>. It's enforced at checkout immediately — no theme edits,
@@ -215,29 +216,34 @@
         <section class="g-section" id="create-a-rule">
           <div class="g-num">03</div>
           <h2>Creating a rule, step by step</h2>
-          <p class="lede">Every rule — either type — is created with the same 3-step wizard. Here's exactly what each
-            step asks for.</p>
+          <p class="lede">Every rule is created with the same 5 steps: rule type, applies to, conditions, customer message
+            and review. Here's what the key steps ask for.</p>
           <div class="g-body">
 
             <div class="g-block">
               <div class="g-text">
                 <h3><span class="step-n">1</span>What kind of rule?</h3>
-                <p>Choose <strong>Block discount codes</strong> or <strong>Limit quantity per order</strong>. This
-                  choice determines what step 2 and 3 ask for next — you can't mix both behaviors in a single rule, so a
-                  store needing both creates two rules.</p>
+                <p>Pick one of nine types: <strong>Maximum quantity</strong>, <strong>Group limit</strong>, <strong>Minimum
+                  quantity</strong>, <strong>Block discounts</strong>, minimum or maximum cart value, quantity multiples,
+                  maximum cart items, or product combination. The type decides what the next steps ask for — a store
+                  needing two behaviors creates two rules.</p>
               </div>
               <div class="g-visual">
                 <div class="wizard">
                   <div class="wizard__steps">
                     <div class="step is-active"><span class="n">1</span>Rule type</div>
-                    <div class="step"><span class="n">2</span>Products</div>
-                    <div class="step"><span class="n">3</span>Message</div>
+                    <div class="step"><span class="n">2</span>Applies to</div>
+                    <div class="step"><span class="n">3</span>Conditions</div>
+                    <div class="step"><span class="n">4</span>Message</div>
+                    <div class="step"><span class="n">5</span>Review</div>
                   </div>
                   <div class="wizard__body">
-                    <div class="wizard__q">Step 1 — What kind of rule?</div>
+                    <div class="wizard__q">Step 1 — What should this rule do?</div>
                     <div class="choice-row">
-                      <div class="choice is-picked">Block discount codes</div>
-                      <div class="choice">Limit quantity per order</div>
+                      <div class="choice is-picked">Block discounts</div>
+                      <div class="choice">Maximum quantity</div>
+                      <div class="choice">Group limit</div>
+                      <div class="choice">+ 6 more</div>
                     </div>
                   </div>
                 </div>
@@ -247,7 +253,9 @@
             <div class="g-block reverse">
               <div class="g-text">
                 <h3><span class="step-n">2</span>Which products?</h3>
-                <p>Select by <strong>tag</strong>, <strong>collection</strong>, or individual <strong>products</strong>.
+                <p>Select by <strong>tag</strong>, <strong>collection</strong>, <strong>vendor</strong>, <strong>product
+                  type</strong>, or individual <strong>products</strong> and variants. For a group limit, mix tags,
+                  collections and products — their quantities add up to one total.
                   Tag is the most hands-off option: tag a product <span class="mono">no-promo</span> once, and it's
                   covered by the rule automatically — including products you add to that tag after the rule was created.
                 </p>
@@ -256,11 +264,13 @@
                 <div class="wizard">
                   <div class="wizard__steps">
                     <div class="step"><span class="n">1</span>Rule type</div>
-                    <div class="step is-active"><span class="n">2</span>Products</div>
-                    <div class="step"><span class="n">3</span>Message</div>
+                    <div class="step is-active"><span class="n">2</span>Applies to</div>
+                    <div class="step"><span class="n">3</span>Conditions</div>
+                    <div class="step"><span class="n">4</span>Message</div>
+                    <div class="step"><span class="n">5</span>Review</div>
                   </div>
                   <div class="wizard__body">
-                    <div class="wizard__q">Step 2 — Which products?</div>
+                    <div class="wizard__q">Step 2 — Which products does it apply to?</div>
                     <div class="field-note">Select by tag, collection, or individual products.</div>
                     <div class="tag-result">Tag = no-promo · 12 products found</div>
                   </div>
@@ -270,8 +280,9 @@
 
             <div class="g-block">
               <div class="g-text">
-                <h3><span class="step-n">3</span>Message shown to the customer</h3>
-                <p>Free text, in your own language. This is what turns a limit from "looks like a bug" into "looks
+                <h3><span class="step-n">4</span>Message shown to the customer</h3>
+                <p>Step 3 sets the number (for example max 2) plus optional customer, market, schedule and exception
+                  conditions. Step 4 is the message: free text, in your own language. This is what turns a limit from "looks like a bug" into "looks
                   professional." Keep it short and specific — mention the reason if it helps (oversized parcel, best
                   price already applied, limited launch).</p>
               </div>
@@ -279,14 +290,16 @@
                 <div class="wizard">
                   <div class="wizard__steps">
                     <div class="step"><span class="n">1</span>Rule type</div>
-                    <div class="step"><span class="n">2</span>Products</div>
-                    <div class="step is-active"><span class="n">3</span>Message</div>
+                    <div class="step"><span class="n">2</span>Applies to</div>
+                    <div class="step"><span class="n">3</span>Conditions</div>
+                    <div class="step is-active"><span class="n">4</span>Message</div>
+                    <div class="step"><span class="n">5</span>Review</div>
                   </div>
                   <div class="wizard__body">
-                    <div class="wizard__q">Step 3 — Message shown to the customer</div>
+                    <div class="wizard__q">Step 4 — Message shown to the customer</div>
                     <div class="msg-box">"This item is already at its best price — discount codes do not apply."</div>
-                    <div style="margin-top:16px;"><span class="btn btn--dark" style="pointer-events:none;">Save &amp;
-                        activate</span></div>
+                    <div style="margin-top:16px;"><span class="btn btn--dark" style="pointer-events:none;">Next: review
+                        &amp; test</span></div>
                   </div>
                 </div>
               </div>
@@ -305,7 +318,7 @@
               <div class="g-text">
                 <h3>Rule · Applies to · Status</h3>
                 <p>Every row shows the rule type, exactly which products/collection/tag it targets, and whether it's
-                  <strong>Active</strong> or <strong>Paused</strong>. Click a row to edit any of the 3 steps without
+                  <strong>Active</strong> or <strong>Paused</strong>. Click a row to edit any step without
                   recreating the rule.
                 </p>
                 <ul class="checklist">

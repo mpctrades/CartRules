@@ -61,8 +61,9 @@
                 <path d="M2 7c40-6 156-6 196 0" stroke="#ff5a1f" stroke-width="5" fill="none" stroke-linecap="round" />
               </svg></span>.</h1>
           <p class="hero__lede">CartRules is a small Shopify app where you attach simple rules to products:
-            <strong>block discount codes</strong> on the items that shouldn't be marked down, and <strong>cap quantity
-              per order</strong> on the items that shouldn't be bought by the dozen. Both enforced automatically, at
+            <strong>block discount codes</strong> on the items that shouldn't be marked down, <strong>cap quantity
+              per order</strong> on the items that shouldn't be bought by the dozen, or <strong>cap a whole
+              group</strong> — like max 2 hoodies in total, any model or size. Enforced automatically, at
             checkout — no code, no theme edits.
           </p>
           <div class="hero__actions">
@@ -145,6 +146,24 @@
       </div>
     </section>
 
+    <!-- ===================== DEMO VIDEO ===================== -->
+    <section id="demo" class="demo">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="eyebrow">See it in action</span>
+          <h2>A group limit, from setup to checkout.</h2>
+          <p>70 seconds, recorded in the real app: create a rule, test a cart, and watch checkout stop at 3 — then
+            go through at 2.</p>
+        </div>
+        <div class="video-frame">
+          <iframe src="https://www.youtube-nocookie.com/embed/L8s8YCo_2wU?rel=0"
+            title="CartRules demo: a group limit from setup to checkout" loading="lazy"
+            allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; web-share"
+            referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+        </div>
+      </div>
+    </section>
+
     <!-- ===================== 01 PROBLEM ===================== -->
     <section id="problem">
       <div class="wrap">
@@ -194,16 +213,16 @@
         </div>
         <div class="grid-3">
           <div class="card principle-card">
-            <div class="idx">01 — TWO RULES, ONE APP</div>
+            <div class="idx">01 — NINE RULE TYPES, ONE APP</div>
             <h3>Discounts and quantity, together.</h3>
-            <p>Order-limit apps don't touch discounts. Discount suites don't touch quantity. CartRules does both, in one
-              tiny app, at a fraction of the price.</p>
+            <p>Order-limit apps don't touch discounts. Discount suites don't touch quantity. CartRules does both — plus
+              group limits, cart value, multiples and product combinations — in one small app.</p>
           </div>
           <div class="card principle-card">
-            <div class="idx">02 — 3-STEP WIZARD</div>
+            <div class="idx">02 — GUIDED SETUP</div>
             <h3>Native Polaris. No clutter.</h3>
-            <p>Rule type → products → message. Three screens, no settings maze. Built for a busy, non-technical
-              merchant, not a power user.</p>
+            <p>Rule type → products → conditions → message → review, then test a cart before you activate. No
+              settings maze — built for a busy, non-technical merchant.</p>
           </div>
           <div class="card principle-card">
             <div class="idx">03 — YOUR OWN WORDS</div>
@@ -321,34 +340,38 @@
           <div class="howit-step">
             <div class="n">1</div>
             <h4>Pick a rule type</h4>
-            <p>Block discount codes, or limit quantity per order. Pick one to start — you can create as many rules as
-              your plan allows.</p>
+            <p>Block discounts, cap or require a quantity, cap a whole group, limit cart value or size, and more — nine
+              types. Start from a template if you like.</p>
           </div>
           <div class="howit-step">
             <div class="n">2</div>
             <h4>Choose products</h4>
-            <p>By individual product, by collection, or by tag — tag-based rules apply automatically to every future
-              product with that tag.</p>
+            <p>By product, variant, collection, tag, vendor or type — tag-based rules apply automatically to every
+              future product with that tag.</p>
           </div>
           <div class="howit-step">
             <div class="n">3</div>
-            <h4>Write the message</h4>
-            <p>One line, in your own words, in your own language. Save &amp; activate — it's enforced at checkout
-              immediately.</p>
+            <h4>Set the limit &amp; message</h4>
+            <p>Set the number, add conditions if you need them, write one line for shoppers, test a cart — then save
+              &amp; activate. It's enforced at checkout immediately.</p>
           </div>
         </div>
 
         <div class="wizard">
           <div class="wizard__steps">
             <div class="step is-active"><span class="n">1</span>Rule type</div>
-            <div class="step"><span class="n">2</span>Products</div>
-            <div class="step"><span class="n">3</span>Message</div>
+            <div class="step"><span class="n">2</span>Applies to</div>
+            <div class="step"><span class="n">3</span>Conditions</div>
+            <div class="step"><span class="n">4</span>Message</div>
+            <div class="step"><span class="n">5</span>Review</div>
           </div>
           <div class="wizard__body">
-            <div class="wizard__q">Step 1 — What kind of rule?</div>
+            <div class="wizard__q">Step 1 — What should this rule do?</div>
             <div class="choice-row">
-              <div class="choice is-picked">Block discount codes</div>
-              <div class="choice">Limit quantity per order</div>
+              <div class="choice is-picked">Block discounts</div>
+              <div class="choice">Maximum quantity</div>
+              <div class="choice">Group limit</div>
+              <div class="choice">+ 6 more</div>
             </div>
             <div class="field-note">Select by tag, collection, or individual products on the next step.</div>
             <div class="tag-result">Tag = no-promo · 12 products found</div>
@@ -387,6 +410,7 @@
               <li>Pick products &amp; variants</li>
               <li>Ready-made messages in 8 languages</li>
               <li>Product-page &amp; cart notices</li>
+              <li>7-day activity history</li>
             </ul>
             <div class="plan__cta"><a href="guide.html#quick-start" class="btn btn--ghost btn--block">Start free</a>
             </div>
@@ -404,6 +428,7 @@
               <li>Unlimited group limit rules</li>
               <li>Cart value, cart size, multiples &amp; combination rules</li>
               <li>Scheduled rules</li>
+              <li>90-day analytics</li>
               <li>Email support</li>
             </ul>
             <div class="plan__cta"><a href="guide.html" class="btn btn--primary btn--block">Choose Growth</a></div>
@@ -414,7 +439,10 @@
             <p class="plan__desc">For high-volume, high-touch stores.</p>
             <ul class="plan__list">
               <li>Everything in Growth</li>
-              <li>Unlimited active rules</li>
+              <li>Customer-level limits (logged-in, guests, tags, B2B)</li>
+              <li>Advanced conditions &amp; market targeting</li>
+              <li>Rule priority</li>
+              <li>365-day analytics history</li>
               <li>Priority support</li>
             </ul>
             <div class="plan__cta"><a href="guide.html" class="btn btn--ghost btn--block">Choose Pro</a></div>
