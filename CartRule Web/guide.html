@@ -316,9 +316,9 @@
           <div class="g-body">
             <div class="g-block">
               <div class="g-text">
-                <h3>Rule · Applies to · Status</h3>
-                <p>Every row shows the rule type, exactly which products/collection/tag it targets, and whether it's
-                  <strong>Active</strong> or <strong>Paused</strong>. Click a row to edit any step without
+                <h3>Rule · Type · Scope · Activity · Status</h3>
+                <p>Every row shows the rule, its type, exactly which products, collection, tag or group it covers,
+                  how often it fired recently, and whether it's <strong>Active</strong> or <strong>Paused</strong>. Click a row to edit any step without
                   recreating the rule.
                 </p>
                 <ul class="checklist">
@@ -326,7 +326,7 @@
                     any time.</li>
                   <li><strong>Editing</strong> lets you change targeting or the message without losing rule history.
                   </li>
-                  <li>Free plan shows a slot counter (e.g. "2 of 3 rules used") so you know when you'll need to upgrade.
+                  <li>On the Free plan the rule count shows your limit (e.g. "3 active (Free plan: up to 3)") so you know when you'll need to upgrade.
                   </li>
                 </ul>
               </div>
@@ -377,8 +377,10 @@
             <div class="g-block">
               <div class="g-text">
                 <h3>Quantity limit in the cart</h3>
-                <p>If a customer adds more than the allowed quantity, CartRules adjusts it down automatically and shows
-                  your message right on the cart line — they understand why before they ever reach checkout.</p>
+                <p>If a cart goes over a limit, CartRules shows your message above the checkout button, and lowers a
+                  quantity the shopper raises past a maximum — they understand why before they reach checkout. This
+                  needs the <strong>Cart quantity guard</strong> block in your theme's cart page. Group limits never
+                  change the cart; checkout simply can't be paid until the shopper is back under the limit.</p>
               </div>
               <div class="g-visual">
                 <div class="cart-mock">
@@ -529,8 +531,9 @@
                 </svg>
                 <div>
                   <h4>A tag-based rule is missing some products</h4>
-                  <p>Double-check the exact tag spelling on the product (tags are case-sensitive) and that the product
-                    is published to the same sales channel where the order is placed.</p>
+                  <p>Double-check the tag spelling on the product (upper or lower case doesn't matter, but "hoodie" and
+                    "hoodies" are different tags) and that the product is published to the same sales channel where
+                    the order is placed.</p>
                 </div>
               </div>
               <div class="trouble-item">
@@ -541,8 +544,9 @@
                 </svg>
                 <div>
                   <h4>The customer message isn't showing</h4>
-                  <p>An empty message field falls back to a default system message. Re-open the rule's step 3 and
-                    confirm your custom text was saved before activating.</p>
+                  <p>An empty message field falls back to the default message, and on the Free plan every rule uses the
+                    default message (your own text needs Growth). Re-open the rule's step 4, Customer message, and
+                    confirm your text was saved.</p>
                 </div>
               </div>
               <div class="trouble-item">
@@ -584,16 +588,18 @@
               <ul class="checklist">
                 <li><strong>Free</strong> — up to 3 active rules: block discounts, max and min quantity, on
                   products and variants you pick, with ready-made customer messages (8 languages) and the
-                  product-page and cart notices.</li>
+                  product-page and cart notices, plus a 7-day activity history.</li>
                 <li><strong>Group limit</strong> — Free includes 1 group limit rule built from products you pick,
                   with the default message (it counts toward the 3 active rules). Growth and Pro include unlimited
                   group limit rules, groups built from tags and collections (like the tag "hoodie"), and your own
                   message.</li>
                 <li><strong>Growth ($4.99/mo)</strong> — everything in Free, unlimited active rules, collection,
                   tag, vendor and product-type targeting, your own messages, cart value / cart size / multiples /
-                  combination rules, scheduled rules, email support.</li>
-                <li><strong>Pro ($9.99/mo)</strong> — everything in Growth, plus priority support.</li>
-                <li>Billing lives under <span class="mono">Plans &amp; billing</span> in the app sidebar — upgrade,
+                  combination rules, scheduled rules, 90-day analytics, email support.</li>
+                <li><strong>Pro ($9.99/mo)</strong> — everything in Growth, plus customer-level limits (logged-in,
+                  guests, tags, B2B), advanced conditions and market targeting, rule priority, a 365-day analytics
+                  history and priority support.</li>
+                <li>Billing lives under <span class="mono">Plan &amp; billing</span> in the app sidebar — upgrade,
                   downgrade, or cancel any time.</li>
               </ul>
             </div>
@@ -657,7 +663,7 @@
         </div>
       </div>
       <div class="footer-bottom">
-        <span>© 2026 MPC Trades. Working title — final app name to be confirmed.</span>
+        <span>© 2026 MPC Trades.</span>
         <span>v1.0 · CartRules</span>
       </div>
     </div>
