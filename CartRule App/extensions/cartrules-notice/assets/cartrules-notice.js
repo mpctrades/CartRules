@@ -228,8 +228,26 @@ function initCartGuard(root, engine) {
     return engine.evaluateCart(engineCart(), rules, { conflictMode: cache.conflictMode }).violations;
   }
 
+  // Shoppers must read the message before they reach the checkout button, but
+  // themes often put app blocks after it (e.g. Dawn's cart footer). Move the
+  // message just above the button — or its button group — when it sits below.
+  function placeAboveCheckout() {
+    if (!messagesEl) return;
+    // Skip the cart drawer's own (hidden) checkout button — on the cart page
+    // it comes first in the DOM in themes like Dawn.
+    const button = Array.from(
+      document.querySelectorAll('[name="checkout"], #checkout, a[href$="/checkout"]'),
+    ).find((el) => !el.closest("cart-drawer, .cart-drawer, .drawer") && el.getClientRects().length > 0);
+    if (!button || !button.parentElement) return;
+    const anchor = button.closest(".cart__ctas, .cart__checkout-wrapper, .cart__checkout-button-wrapper") || button;
+    if (!anchor.parentElement) return;
+    if (anchor.compareDocumentPosition(messagesEl) & Node.DOCUMENT_POSITION_PRECEDING) return;
+    anchor.parentElement.insertBefore(messagesEl, anchor);
+  }
+
   function show(violations) {
     if (!messagesEl) return;
+    placeAboveCheckout();
     const text = Array.from(new Set([...violations.map((v) => v.message), lastCorrection].filter(Boolean))).join(" ");
     // Only touch the DOM on a real change — the MutationObserver below would
     // otherwise re-trigger itself forever.
